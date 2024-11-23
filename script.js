@@ -19,7 +19,7 @@ function callFindUrlsAndModels() {
 	
 		elements.forEach(element => {
 			scannedVehicles++;
-	
+
 			const modelElement = element.querySelector('.value__model');
 			const trimElement = element.querySelector('.value__trim');
 			const stockNumberElement = element.querySelector('.stock_number');

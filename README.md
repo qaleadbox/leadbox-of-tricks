@@ -1,22 +1,51 @@
 # **How to install**
-## Chrome
+## Google Chrome
+### Clonning project
+`
+git clone https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension.git
+`
+**Ask for permission**
 1. Open CHROME BROWSER.
 2. Access `chrome://extensions/`.
 3. Enable **Developer Mode**.
 4. Click on **Load unpacked**.
 5. Browse the Extension Location.
 
+### .crx extension
+1. Access `chrome://extensions/`.
+2. Enable **Developer Mode**.
+3. Download **Inventory Crawl Chrome Extension.crx** file.
+4. Drop file into Google Chrome extensions tab.
+
 # **Structure**
 ## **Folders**
 ```
 root/
-├── manifest.json -> Main configuration file.
+├── extensions -> Browsers extensions folder.
+    └── Google Chrome
+        └── Inventory Crawl Chrome Extension.crx -> Chrome extension
+├── icons -> Extension Icon's folder.
+    ├── 16x16 -> 16x16 icons
+    ├── 48x48 -> 48x48 icons
+    └── 128x128 -> 128x128 icons
 ├── popup.html -> Interface HTML file.
 ├── popup.js -> JavaScript file.
 ├── background.js -> Background behaviour file 
 ├── readme.md -> **This** Markdown instructions file
-├── icon.png -> Extension Icon. It will shown on browser's extension list
+└── manifest.json -> Main configuration file.
 ```
+
+# Development Status
+| Action items       | Status        |
+|--------------------|---------------|
+| Local Extension                                                   | done |
+| 100% Frontend (no backend, no JSON)                               | done |
+| Saves the result to a Word document                               | pendent |
+| View More button is a challenge                                   | pendent |
+| Research how the View More button works                           | pendent |
+| Check if coming soon images have the same class as regular images | pendent |
+| Make a list of what types of data the application will capture    | pendent |
+| Research how the infinite scroll works                            | pendent |
 
 # Goal
 May 17, 2024 | Inventory Crawl Function
@@ -25,8 +54,8 @@ Attendees: Agustín Gutiérrez Estevan Martins Legna Ettedgui
 Notes
     • Task: https://3.basecamp.com/5126812/buckets/24988316/todos/7301107305
     • A frontend application that scans SRP pages for the following:
-- Prices (or lack of prices)
-- Pictures (or coming soon)
+        - Prices (or lack of prices)
+        - Pictures (or coming soon)
     • Local Extension
     • Saves the result to a Word document
     • View More button is a challenge
