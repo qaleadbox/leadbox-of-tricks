@@ -12,10 +12,11 @@ git clone https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension.git
 5. Browse the Extension Location.
 
 ### .crx extension
-1. Access `chrome://extensions/`.
-2. Enable **Developer Mode**.
-3. Download **Inventory Crawl Chrome Extension.crx** file.
-4. Drop file into Google Chrome extensions tab.
+1. Open CHROME BROWSER.
+2. Access `chrome://extensions/`.
+3. Enable **Developer Mode**.
+4. Download **Inventory Crawl Chrome Extension.crx** file.
+5. Drop file into Google Chrome extensions tab.
 
 # **Structure**
 ## **Folders**
@@ -40,12 +41,15 @@ root/
 |--------------------|---------------|
 | Local Extension                                                   | done |
 | 100% Frontend (no backend, no JSON)                               | done |
+| Research how the infinite scroll works                            | done |
+| Check if coming soon images have the same class as regular images | pendent |
 | Saves the result to a Word document                               | pendent |
 | View More button is a challenge                                   | pendent |
 | Research how the View More button works                           | pendent |
-| Check if coming soon images have the same class as regular images | pendent |
 | Make a list of what types of data the application will capture    | pendent |
-| Research how the infinite scroll works                            | pendent |
+
+# Known Issues
+=> Once algoritm runned, if we refresh the page it will scoll down one time by it self.
 
 # Goal
 May 17, 2024 | Inventory Crawl Function
