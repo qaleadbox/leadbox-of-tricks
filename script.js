@@ -1,15 +1,17 @@
-document.getElementById('Check missing images').addEventListener('click', async () => {
-	const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  	chrome.scripting.executeScript({
-		target: { tabId: tab.id },
-		function: callFindUrlsAndModels
-	});
+document.getElementById('Check missing images').addEventListener('click', async (event) => {
+    const testType = event.target.textContent.trim().toLowerCase().replace(/\s+/g, '-');
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        function: callFindUrlsAndModels,
+        args: [testType]
+    });
 });
 
-function callFindUrlsAndModels() {
-    findUrlsAndModels();
+function callFindUrlsAndModels(testType) {
+    findUrlsAndModels(testType);
 
-    async function findUrlsAndModels() {
+    async function findUrlsAndModels(testType) {
         const result = [];
 		let scannedVehicles = 0;
 
@@ -19,6 +21,8 @@ function callFindUrlsAndModels() {
 		const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
 		console.log(message);
 		console.log(result);
+
+		exportToCSVFile(result, testType);
     }
 
 	async function scrollDownUntilLoadAllVehicles() {
@@ -61,5 +65,36 @@ function callFindUrlsAndModels() {
             }
         });
         return elements.length;
+    }
+
+	function exportToCSVFile(data, testType) {
+        if (data.length === 0) {
+            alert('No data to export!');
+            return;
+        }
+
+		const siteName = window.location.hostname.replace('www.', '');
+		const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
+		const filename = `${siteName}_${testType.toUpperCase()}_${timestamp}.csv`;
+
+        const headers = ['Model', 'Trim', 'Stock Number', 'Image URL'];
+        const rows = data.map(item => [item.model, item.trim, item.stockNumber, item.imageUrl]);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(value => `"${value}"`).join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+
+        link.href = url;
+        link.download = `${filename}.csv`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     }
 }

@@ -24,7 +24,8 @@ git clone https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension.git
 root/
 ├── extensions -> Browsers extensions folder.
     └── Google Chrome
-        └── Inventory Crawl Chrome Extension.crx -> Chrome extension
+        ├── Inventory Crawl Chrome Extension.crx -> Chrome extension
+        └── Inventory Crawl Chrome Extension.pem - Chrome extension permission
 ├── icons -> Extension Icon's folder.
     ├── 16x16 -> 16x16 icons
     ├── 48x48 -> 48x48 icons
@@ -42,10 +43,9 @@ root/
 | Local Extension                                                   | done |
 | 100% Frontend (no backend, no JSON)                               | done |
 | Research how the infinite scroll works                            | done |
-| Check if coming soon images have the same class as regular images | pendent |
-| Saves the result to a Word document                               | pendent |
+| Saves the result to a Word document                               | done |
 | View More button is a challenge                                   | pendent |
-| Research how the View More button works                           | pendent |
+| Check if coming soon images have the same class as regular images | pendent |
 | Make a list of what types of data the application will capture    | pendent |
 
 # Known Issues
