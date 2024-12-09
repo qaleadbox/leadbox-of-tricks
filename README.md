@@ -44,7 +44,7 @@ root/
 | 100% Frontend (no backend, no JSON)                               | done |
 | Research how the infinite scroll works                            | done |
 | Saves the result to a Word document                               | done |
-| View More button is a challenge                                   | pendent |
+| View More button is a challenge                                   | done |
 | Check if coming soon images have the same class as regular images | pendent |
 | Make a list of what types of data the application will capture    | pendent |
 

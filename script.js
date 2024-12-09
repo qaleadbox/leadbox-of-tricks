@@ -32,7 +32,12 @@ function callFindUrlsAndModels(testType) {
 		while (actualElementsLoaded !== lastCount) {
 			lastCount = actualElementsLoaded;
 			window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-
+            
+            const viewMoreButton = document.querySelector('button.lbx-load-more-btn');
+            if (viewMoreButton) {
+                console.log('Clicking "View More Vehicles" button...');
+                viewMoreButton.click();
+            }
 			await new Promise(resolve => setTimeout(resolve, 1000));
 
 			actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
