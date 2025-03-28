@@ -43,10 +43,12 @@ root/
 | Local Extension                                                   | done |
 | 100% Frontend (no backend, no JSON)                               | done |
 | Research how the infinite scroll works                            | done |
-| Saves the result to a Word document                               | done |
+| Saves the result to a CSV document                               | done |
 | View More button is a challenge                                   | done |
-| Check if coming soon images have the same class as regular images | pendent |
-| Make a list of what types of data the application will capture    | pendent |
+| Check if coming soon images have the same class as regular images | pending |
+| Make a list of what types of data the application will capture    | pending |
+| Compare .csv file with what's shown in the SRP                   | pending |
+| Use AI for the comparison                                       | pending |
 
 # Known Issues
 => Once algoritm runned, if we refresh the page it will scoll down one time by it self.
