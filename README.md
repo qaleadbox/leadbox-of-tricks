@@ -49,6 +49,7 @@ root/
 | Make a list of what types of data the application will capture    | pending |
 | Compare .csv file with what's shown in the SRP                   | pending |
 | Use AI for the comparison                                       | pending |
+| Implement the pagination by numbers                              | pending |
 
 # Known Issues
 => Once algoritm runned, if we refresh the page it will scoll down one time by it self.
