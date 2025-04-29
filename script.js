@@ -27,28 +27,48 @@ function callFindUrlsAndModels(testType) {
 
 	async function scrollDownUntilLoadAllVehicles() {
 		let actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-		let lastCount = 0;
+		let lastElementsLoaded = 0;
+        let totalElementsLoaded = 0;
 
-		while (actualElementsLoaded !== lastCount) {
-			lastCount = actualElementsLoaded;
+		while (actualElementsLoaded !== lastElementsLoaded) {
+			lastElementsLoaded = actualElementsLoaded;
 			window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
             
             const viewMoreButton = document.querySelector('button.lbx-load-more-btn');
+            const paginationRightArrow = document.querySelector('.right-arrow');
             if (viewMoreButton) {
-                console.log('Clicking "View More Vehicles" button...');
+                console.warn('Clicking "View More Vehicles" button...');
                 viewMoreButton.click();
             }
+            else if (paginationRightArrow){
+                lastElementsLoaded = -1;
+                console.warn('Clicking pagination right arrow...');
+                paginationRightArrow.click();
+            }
+
 			await new Promise(resolve => setTimeout(resolve, 1000));
 
 			actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-			console.log(`Scrolled: ${actualElementsLoaded} elements loaded.`);
+            const hostname = window.location.hostname;
+
+            switch (hostname){
+
+            case "landrovertoronto.ca":
+            case "jaguartoronto.com":
+                totalElementsLoaded = actualElementsLoaded;
+                break;
+            // case "www.bridgesgm.com":
+            //     totalElementsLoaded += actualElementsLoaded;
+            //     break;
+            }            
+			console.warn(`${totalElementsLoaded} elements loaded.`);
 		}
 		console.warn("Finished scrolling, all vehicles loaded.");
 	}
 
     function readVehiclesAndWriteResults(result) {
         const elements = document.querySelectorAll('.vehicle-car__section');
-        elements.forEach(element => {
+        elements.forEach(async element => {
             const modelElement = element.querySelector('.value__model');
             const trimElement = element.querySelector('.value__trim');
             const stockNumberElement = element.querySelector('.stock_number');
@@ -60,10 +80,25 @@ function callFindUrlsAndModels(testType) {
                     const trim = trimElement.textContent.trim();
                     const stockNumber = stockNumberElement.textContent.trim();
                     const imageUrl = imageUrlElement.dataset.src;
+                    const hostname = window.location.hostname;
 
-                    if (imageUrl && (imageUrl.includes('better-photo.jpg') || imageUrl.includes('spinner.gif'))) {
-                        result.push({ model, trim, stockNumber, imageUrl });
-                    }
+                    if (imageUrl){
+
+                        switch (hostname){
+
+                        case "landrovertoronto.ca":
+                        case "jaguartoronto.com":
+                            if (imageUrl.includes('better-photo.jpg')) {
+                                result.push({ model, trim, stockNumber, imageUrl });
+                            }break;
+
+                        // case "www.bridgesgm.com":
+                        //     const imageSize = await getImageFileSize(imageUrl);
+                        //     if (imageSize <= 50000) {
+                        //         result.push({ model, trim, stockNumber, imageUrl });
+                        //     }break;
+                        }
+                    }    
                 }
             } catch (error) {
                 console.error("An error occurred while processing elements:", error);
