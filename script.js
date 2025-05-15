@@ -12,11 +12,10 @@ function callFindUrlsAndModels(testType) {
     findUrlsAndModels(testType);
 
     async function findUrlsAndModels(testType) {
-        const result = [];
 		let scannedVehicles = 0;
+        let result = [];
 
-		await scrollDownUntilLoadAllVehicles();
-		scannedVehicles = readVehiclesAndWriteResults(result);
+		scannedVehicles = await scrollDownUntilLoadAllVehicles(scannedVehicles, result);
 
 		const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
 		console.log(message);
@@ -25,7 +24,7 @@ function callFindUrlsAndModels(testType) {
 		exportToCSVFile(result, testType);
     }
 
-	async function scrollDownUntilLoadAllVehicles() {
+	async function scrollDownUntilLoadAllVehicles(scannedVehicles, result) {
 		let actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
 		let lastElementsLoaded = 0;
         let totalElementsLoaded = 0;
@@ -49,25 +48,34 @@ function callFindUrlsAndModels(testType) {
 			await new Promise(resolve => setTimeout(resolve, 1000));
 
 			actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-            const hostname = window.location.hostname;
+                
+            const windowLocationHostname = window.location.hostname; 
 
-            switch (hostname){
-
+            switch (windowLocationHostname){            
+                
             case "landrovertoronto.ca":
             case "jaguartoronto.com":
                 totalElementsLoaded = actualElementsLoaded;
                 break;
-            // case "www.bridgesgm.com":
-            //     totalElementsLoaded += actualElementsLoaded;
-            //     break;
+
+            case "www.bridgesgm.com":
+            case "mcnaughtbuickgmc.kinsta.cloud":
+            case "nursechevrolet.kinsta.cloud":
+                totalElementsLoaded += actualElementsLoaded;
+                break;
             }            
-			console.warn(`${totalElementsLoaded} elements loaded.`);
+            console.warn(`${totalElementsLoaded} elements loaded.`);
+            scannedVehicles = await readVehiclesAndAddResults(result);              
 		}
 		console.warn("Finished scrolling, all vehicles loaded.");
+        // FIXME
+        // WHEN PAGINATION, ONLY THE LAST PAGE VALUES ARE INCREMENTED
+        return scannedVehicles;
 	}
 
-    function readVehiclesAndWriteResults(result) {
+    async function readVehiclesAndAddResults(result) {
         const elements = document.querySelectorAll('.vehicle-car__section');
+        
         elements.forEach(async element => {
             const modelElement = element.querySelector('.value__model');
             const trimElement = element.querySelector('.value__trim');
@@ -89,15 +97,27 @@ function callFindUrlsAndModels(testType) {
                         case "landrovertoronto.ca":
                         case "jaguartoronto.com":
                             if (imageUrl.includes('better-photo.jpg')) {
-                                result.push({ model, trim, stockNumber, imageUrl });
+                                const alreadyExists = result.some(item => item.stockNumber === stockNumber);
+                                if (!alreadyExists) {
+                                    result.push({ model, trim, stockNumber, imageUrl });
+                                }
+    
                             }break;
-
-                        // case "www.bridgesgm.com":
-                        //     const imageSize = await getImageFileSize(imageUrl);
-                        //     if (imageSize <= 50000) {
-                        //         result.push({ model, trim, stockNumber, imageUrl });
-                        //     }break;
-                        }
+    
+                        case "www.bridgesgm.com":
+                        case "mcnaughtbuickgmc.kinsta.cloud":
+                        case "nursechevrolet.kinsta.cloud":
+                            
+                            const imageSize = await getImageFileSize(imageUrl);
+                            // WORKING! BUT THIS IMAGES SHOULD CAME FROM THE INPUT
+                            const referenceImageLink = 'https://cardealerstg.blob.core.windows.net/autocanada/vehicles/1331383/pictures/745c3056-904e-43d4-846c-462208ac793c-card.jpg'
+                            const imageSizeReference = await getImageFileSize(referenceImageLink);
+    
+                            if (imageSize === imageSizeReference) {
+                                result.push({ model, trim, stockNumber, imageUrl });
+                            }
+                            break;
+                        } 
                     }    
                 }
             } catch (error) {
@@ -136,5 +156,18 @@ function callFindUrlsAndModels(testType) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+    }
+
+    //======================================= HELPERS ===============================================
+    
+    async function getImageFileSize(url) {
+        try {
+            const response = await fetch(url, { method: 'HEAD' });
+            const size = response.headers.get('Content-Length');
+            return size ? parseInt(size, 10) : 0;
+        } catch (err) {
+            console.warn('Could not fetch image size:', url, err);
+            return 0;
+        }
     }
 }
