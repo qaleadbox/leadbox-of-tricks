@@ -1,4 +1,4 @@
-document.getElementById('Check missing images').addEventListener('click', async (event) => {
+document.getElementById('check missing images').addEventListener('click', async (event) => {
     const testType = event.target.textContent.trim().toLowerCase().replace(/\s+/g, '-');
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     chrome.scripting.executeScript({
@@ -93,9 +93,12 @@ function callFindUrlsAndModels(testType) {
                     if (imageUrl){
 
                         switch (hostname){
-
+// ON FUTURE, DETECT THE SCROLL TYPE
+// VIEW MORE AND INFINITY SCROLL WITH BETTER PHOTO
+// PAGINATION WITH INPUT IMAGES COMPARISSON
                         case "landrovertoronto.ca":
                         case "jaguartoronto.com":
+                        case "countychevroletessex.com":
                             if (imageUrl.includes('better-photo.jpg')) {
                                 const alreadyExists = result.some(item => item.stockNumber === stockNumber);
                                 if (!alreadyExists) {
