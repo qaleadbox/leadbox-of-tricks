@@ -9,73 +9,71 @@ document.getElementById('check missing images').addEventListener('click', async 
 });
 
 function callFindUrlsAndModels(testType) {
+    let scannedVehicles = 0;
+    let result = [];
+
+    const paginationElement = document.querySelector('nav.page-nav.flex.justify-center.lbx-paginator-nav');
+    const paginationRightArrow = document.querySelector('.right-arrow');
+    const viewMoreButton = document.querySelector('button.lbx-load-more-btn');
+
+    const isThereANextPage = paginationRightArrow != null;
+    const isViewMoreVehiclesButton = viewMoreButton !== null;
+
+    const isPagination = paginationElement !== null;
+
     findUrlsAndModels(testType);
 
     async function findUrlsAndModels(testType) {
-		let scannedVehicles = 0;
-        let result = [];
+        scannedVehicles = await scrollDownUntilLoadAllVehicles();
 
-		scannedVehicles = await scrollDownUntilLoadAllVehicles(scannedVehicles, result);
+        const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
+        console.log(message);
+        console.log(result);
 
-		const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
-		console.log(message);
-		console.log(result);
-
-		exportToCSVFile(result, testType);
+        exportToCSVFile(result, testType);
     }
 
-	async function scrollDownUntilLoadAllVehicles(scannedVehicles, result) {
-		let actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-		let lastElementsLoaded = 0;
+    async function scrollDownUntilLoadAllVehicles() {
+        let actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
+        let lastElementsLoaded = 0;
         let totalElementsLoaded = 0;
 
-		while (actualElementsLoaded !== lastElementsLoaded) {
-			lastElementsLoaded = actualElementsLoaded;
-			window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-            
-            const viewMoreButton = document.querySelector('button.lbx-load-more-btn');
-            const paginationRightArrow = document.querySelector('.right-arrow');
-            if (viewMoreButton) {
-                console.warn('Clicking "View More Vehicles" button...');
-                viewMoreButton.click();
+        while (lastElementsLoaded !== actualElementsLoaded) {
+
+            lastElementsLoaded = actualElementsLoaded;
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
+            if (isPagination) {
+                totalElementsLoaded += actualElementsLoaded;
             }
-            else if (paginationRightArrow){
+            else if ((isViewMoreVehiclesButton)
+                || (!isPagination && !isViewMoreVehiclesButton)) {
+                totalElementsLoaded = actualElementsLoaded;
+            }
+            console.warn(`${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
+
+            if (isThereANextPage) {
                 lastElementsLoaded = -1;
                 console.warn('Clicking pagination right arrow...');
                 paginationRightArrow.click();
             }
+            // FIXME - NOT READING THE WHOLE PAGE WHEN IT IS VIEW MORE BUTTON
+            else if (isViewMoreVehiclesButton) {
+                console.warn('Clicking "View More Vehicles" button...');
+                viewMoreButton.click();
+            }
+            await readVehiclesAndAddResults();
+        }
+        console.warn("Finished scrolling, all vehicles loaded.");
+        return totalElementsLoaded;
+    }
 
-			await new Promise(resolve => setTimeout(resolve, 1000));
-
-			actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-                
-            const windowLocationHostname = window.location.hostname; 
-
-            switch (windowLocationHostname){            
-                
-            case "landrovertoronto.ca":
-            case "jaguartoronto.com":
-                totalElementsLoaded = actualElementsLoaded;
-                break;
-
-            case "www.bridgesgm.com":
-            case "mcnaughtbuickgmc.kinsta.cloud":
-            case "nursechevrolet.kinsta.cloud":
-                totalElementsLoaded += actualElementsLoaded;
-                break;
-            }            
-            console.warn(`${totalElementsLoaded} elements loaded.`);
-            scannedVehicles = await readVehiclesAndAddResults(result);              
-		}
-		console.warn("Finished scrolling, all vehicles loaded.");
-        // FIXME
-        // WHEN PAGINATION, ONLY THE LAST PAGE VALUES ARE INCREMENTED
-        return scannedVehicles;
-	}
-
-    async function readVehiclesAndAddResults(result) {
+    async function readVehiclesAndAddResults() {
         const elements = document.querySelectorAll('.vehicle-car__section');
-        
+
         elements.forEach(async element => {
             const modelElement = element.querySelector('.value__model');
             const trimElement = element.querySelector('.value__trim');
@@ -88,57 +86,46 @@ function callFindUrlsAndModels(testType) {
                     const trim = trimElement.textContent.trim();
                     const stockNumber = stockNumberElement.textContent.trim();
                     const imageUrl = imageUrlElement.dataset.src;
-                    const hostname = window.location.hostname;
 
-                    if (imageUrl){
+                    if (imageUrl) {
 
-                        switch (hostname){
-// ON FUTURE, DETECT THE SCROLL TYPE
-// VIEW MORE AND INFINITY SCROLL WITH BETTER PHOTO
-// PAGINATION WITH INPUT IMAGES COMPARISSON
-                        case "landrovertoronto.ca":
-                        case "jaguartoronto.com":
-                        case "countychevroletessex.com":
+                        if (isPagination) {
+                            const imageSize = await getImageFileSize(imageUrl);
+                            // WORKING! BUT THIS IMAGES SHOULD CAME FROM THE INPUT
+                            const referenceImageLink = 'https://cardealerstg.blob.core.windows.net/autocanada/vehicles/1345850/pictures/84d20820-6ddf-4b4c-98e6-3fc53c78d928-card.jpg'
+                            const imageSizeReference = await getImageFileSize(referenceImageLink);
+
+                            if (imageSize === imageSizeReference) {
+                                result.push({ model, trim, stockNumber, imageUrl });
+                            }
+                        } else if ((isViewMoreVehiclesButton)
+                            || (!isPagination && !isViewMoreVehiclesButton)) {
                             if (imageUrl.includes('better-photo.jpg')) {
                                 const alreadyExists = result.some(item => item.stockNumber === stockNumber);
                                 if (!alreadyExists) {
                                     result.push({ model, trim, stockNumber, imageUrl });
                                 }
-    
-                            }break;
-    
-                        case "www.bridgesgm.com":
-                        case "mcnaughtbuickgmc.kinsta.cloud":
-                        case "nursechevrolet.kinsta.cloud":
-                            
-                            const imageSize = await getImageFileSize(imageUrl);
-                            // WORKING! BUT THIS IMAGES SHOULD CAME FROM THE INPUT
-                            const referenceImageLink = 'https://cardealerstg.blob.core.windows.net/autocanada/vehicles/1331383/pictures/745c3056-904e-43d4-846c-462208ac793c-card.jpg'
-                            const imageSizeReference = await getImageFileSize(referenceImageLink);
-    
-                            if (imageSize === imageSizeReference) {
-                                result.push({ model, trim, stockNumber, imageUrl });
                             }
-                            break;
-                        } 
-                    }    
+                        } else {
+                            console.error("Scrolling method not implemented.")
+                        }
+                    }
                 }
             } catch (error) {
                 console.error("An error occurred while processing elements:", error);
             }
         });
-        return elements.length;
     }
 
-	function exportToCSVFile(data, testType) {
+    function exportToCSVFile(data, testType) {
         if (data.length === 0) {
             alert('No data to export!');
             return;
         }
 
-		const siteName = window.location.hostname.replace('www.', '');
-		const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
-		const filename = `${siteName}_${testType.toUpperCase()}_${timestamp}.csv`;
+        const siteName = window.location.hostname.replace('www.', '');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
+        const filename = `${siteName}_${testType.toUpperCase()}_${timestamp}.csv`;
 
         const headers = ['Model', 'Trim', 'Stock Number', 'Image URL'];
         const rows = data.map(item => [item.model, item.trim, item.stockNumber, item.imageUrl]);
@@ -162,7 +149,7 @@ function callFindUrlsAndModels(testType) {
     }
 
     //======================================= HELPERS ===============================================
-    
+
     async function getImageFileSize(url) {
         try {
             const response = await fetch(url, { method: 'HEAD' });
