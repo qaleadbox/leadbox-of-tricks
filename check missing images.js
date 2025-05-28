@@ -12,15 +12,6 @@ function callFindUrlsAndModels(testType) {
     let scannedVehicles = 0;
     let result = [];
 
-    const paginationElement = document.querySelector('nav.page-nav.flex.justify-center.lbx-paginator-nav');
-    const paginationRightArrow = document.querySelector('.right-arrow');
-    const viewMoreButton = document.querySelector('button.lbx-load-more-btn');
-
-    const isThereANextPage = paginationRightArrow != null;
-    const isViewMoreVehiclesButton = viewMoreButton !== null;
-
-    const isPagination = paginationElement !== null;
-
     findUrlsAndModels(testType);
 
     async function findUrlsAndModels(testType) {
@@ -35,36 +26,52 @@ function callFindUrlsAndModels(testType) {
 
     async function scrollDownUntilLoadAllVehicles() {
         let actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-        let lastElementsLoaded = 0;
         let totalElementsLoaded = 0;
 
-        while (lastElementsLoaded !== actualElementsLoaded) {
+        let isMoreVehicleAvailable = true;
 
-            lastElementsLoaded = actualElementsLoaded;
+        while (isMoreVehicleAvailable) {
+            const PAGINATION_SCROLL_TYPE = isPaginationScrollType();
+            const VIEW_MORE_VEHICLES_SCROLL_TYPE = isViewMoreScrollType();
+
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
+            actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-            if (isPagination) {
+            if (PAGINATION_SCROLL_TYPE) {
                 totalElementsLoaded += actualElementsLoaded;
+                if (isThereANextPage()) {
+                    getPaginationArrow().click();
+                    console.warn('Clicking pagination next page arrow...');
+                }
+                else {
+                    isMoreVehicleAvailable = false;
+                    console.log("pagination sem next page vailavbe");
+                }
             }
-            else if ((isViewMoreVehiclesButton)
-                || (!isPagination && !isViewMoreVehiclesButton)) {
+            else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
                 totalElementsLoaded = actualElementsLoaded;
+                if (isViewMoreButtonVisible()) {
+
+                    getViewMoreButton().click();
+                    console.warn('Clicking "View More Vehicles" button...');
+                }
+                else {
+                    isMoreVehicleAvailable = false;
+                }
+            }
+            else {
+                if (actualElementsLoaded != totalElementsLoaded) {
+                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                    console.warn('Scrolling to see more vehicles...');
+                    totalElementsLoaded = actualElementsLoaded;
+                }
+                else {
+                    isMoreVehicleAvailable = false;
+                }
             }
             console.warn(`${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
-
-            if (isThereANextPage) {
-                lastElementsLoaded = -1;
-                console.warn('Clicking pagination right arrow...');
-                paginationRightArrow.click();
-            }
-            // FIXME - NOT READING THE WHOLE PAGE WHEN IT IS VIEW MORE BUTTON
-            else if (isViewMoreVehiclesButton) {
-                console.warn('Clicking "View More Vehicles" button...');
-                viewMoreButton.click();
-            }
             await readVehiclesAndAddResults();
         }
         console.warn("Finished scrolling, all vehicles loaded.");
@@ -72,6 +79,8 @@ function callFindUrlsAndModels(testType) {
     }
 
     async function readVehiclesAndAddResults() {
+        const PAGINATION_SCROLL_TYPE = isPaginationScrollType();
+        const VIEW_MORE_VEHICLES_SCROLL_TYPE = isViewMoreScrollType();
         const elements = document.querySelectorAll('.vehicle-car__section');
 
         elements.forEach(async element => {
@@ -89,7 +98,7 @@ function callFindUrlsAndModels(testType) {
 
                     if (imageUrl) {
 
-                        if (isPagination) {
+                        if (PAGINATION_SCROLL_TYPE) {
                             const imageSize = await getImageFileSize(imageUrl);
                             // WORKING! BUT THIS IMAGES SHOULD CAME FROM THE INPUT
                             const referenceImageLink = 'https://cardealerstg.blob.core.windows.net/autocanada/vehicles/1345850/pictures/84d20820-6ddf-4b4c-98e6-3fc53c78d928-card.jpg'
@@ -98,8 +107,8 @@ function callFindUrlsAndModels(testType) {
                             if (imageSize === imageSizeReference) {
                                 result.push({ model, trim, stockNumber, imageUrl });
                             }
-                        } else if ((isViewMoreVehiclesButton)
-                            || (!isPagination && !isViewMoreVehiclesButton)) {
+                        } else if ((VIEW_MORE_VEHICLES_SCROLL_TYPE)
+                            || (!PAGINATION_SCROLL_TYPE && !VIEW_MORE_VEHICLES_SCROLL_TYPE)) {
                             if (imageUrl.includes('better-photo.jpg')) {
                                 const alreadyExists = result.some(item => item.stockNumber === stockNumber);
                                 if (!alreadyExists) {
@@ -159,5 +168,27 @@ function callFindUrlsAndModels(testType) {
             console.warn('Could not fetch image size:', url, err);
             return 0;
         }
+    }
+
+    function isPaginationScrollType() {
+        return document.querySelector('nav.page-nav.flex.justify-center.lbx-paginator-nav') !== null;
+    }
+    function getPaginationArrow() {
+        return document.querySelector('.right-arrow');
+    }
+    function isThereANextPage() {
+        const rightArrow = getPaginationArrow();
+        return rightArrow && rightArrow.offsetParent !== null;
+    }
+
+    function isViewMoreScrollType() {
+        return document.querySelector('button.lbx-load-more-btn') !== null;
+    }
+    function getViewMoreButton() {
+        return document.querySelector('button.lbx-load-more-btn');
+    }
+    function isViewMoreButtonVisible() {
+        const btn = document.querySelector('button.lbx-load-more-btn');
+        return btn && btn.offsetParent !== null;
     }
 }
