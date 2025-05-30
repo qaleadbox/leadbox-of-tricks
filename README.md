@@ -2,35 +2,28 @@
 
 ## Google Chrome
 
-### Clonning project
+### Installing the extension 
 
-`
-git clone https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension.git
-`
-
-### Environment API key
-
-Create a file on the project's root "config.js" and inside of it
-`
-export const OPENAI_API_KEY = <your-openai-api-key-here>;
-export const OPENAI_API_URL = <your-openai-link-here>;
-`
-
-### Installing by chrome packing
-
-1. Open CHROME BROWSER.
-2. Access `chrome://extensions/`.
-3. Enable **Developer Mode**.
-4. Click on **Load unpacked**.
-5. Browse the Extension Location.
-
-### .crx extension
+[https://gyazo.com/4c47868b5ad910bb0403d626b518b906]
 
 1. Open CHROME BROWSER.
 2. Access `chrome://extensions/`.
 3. Enable **Developer Mode**.
 4. Download **Inventory Crawl Chrome Extension.crx** file.
-5. Drop file into Google Chrome extensions tab.
+5. Drop file into Google Chrome extensions tab, then confirm.
+6. On "Safety Checks", on LeadBox of tricks, click on three dots, then Keep this extension.
+
+# How to use
+
+## Module001: Convert HREF from LI elements to paste on spreadsheet cells
+
+[https://gyazo.com/01bcde274738404aeabef2402b78b0fe]
+
+1. Access the SiteMap
+2. Inspect the elements list
+3. Copy the ul element with li inside
+4. Paste here (should follow this structure):
+
 
 # Structure
 
@@ -62,13 +55,14 @@ root/
 | Local Extension                                                   | done |
 | 100% Frontend (no backend, no JSON)                               | done |
 | Research how the infinite scroll works                            | done |
-| Saves the result to a CSV document                               | done |
+| Saves the result to a CSV document                                | done |
 | View More button is a challenge                                   | done |
-| Implement the pagination by numbers                              | done |
+| Implement the pagination by numbers                               | done |
 | Make a list of what types of data the application will capture    | done |
-| Compare .csv file with what's shown in the SRP                   | done |
+| Compare .csv file with what's shown in the SRP                    | done |
+| Convert HREF from LI elements to paste on spreadsheet cells       | done |
 | Check if coming soon images have the same class as regular images | pending |
-| Use AI for the comparison                                       | pending |
+| Use AI for the comparison                                         | pending |
 
 # Known Issues
 

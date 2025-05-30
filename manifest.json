@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Crawl Inventory Checker",
-  "version": "1.4",
-  "description": "Script to find images load problems.",
+  "name": "LeadBox of Tricks",
+  "version": "1.5",
+  "description": "A toolbox designed to boost your productivity.",
   "permissions": [
     "scripting",
     "activeTab"
@@ -10,9 +10,9 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "./icons/16x16/icon1.png",
-      "48": "./icons/48x48/icon.png",
-      "128": "./icons/128x128/icon.png"
+      "16": "/icons/16x16/icon1.png",
+      "48": "/icons/48x48/icon.png",
+      "128": "/icons/128x128/icon.png"
     }
   },
   "background": {

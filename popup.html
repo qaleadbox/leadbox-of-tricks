@@ -2,7 +2,7 @@
 <html>
 
 <head>
-  <title>Crawl Inventory Checker</title>
+  <title>LeadBoxHQ Tools</title>
   <style>
     body {
       width: 480px;
@@ -62,6 +62,16 @@
       box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.2);
     }
 
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      background: linear-gradient(to bottom, #cccccc, #bbbbbb);
+      border-color: #999999;
+      color: #666666;
+      text-shadow: none;
+      box-shadow: none;
+    }
+
     #hrefInput {
       display: none;
       background: white;
@@ -97,10 +107,10 @@
 
 <body>
   <h1>LeadBoxHQ Extension</h1>
-  <button id="check missing images">Check missing images</button>
+  <button id="check missing images" disabled>Check missing images</button>
   <script type="module" src="check missing images.js"></script>
 
-  <button id="match csv data with SRP cards information">Match csv data with SRP cards information</button>
+  <button id="match csv data with SRP cards information" disabled>Match csv data with SRP cards information</button>
   <script type="module" src="match csv data with SRP cards information.js"></script>
 
   <button id="HREF extraction to spreadsheet">HREF extraction to spreadsheet</button>
@@ -118,7 +128,7 @@ Steps:
     &lt;a href=&quot;https://example.com/page&quot;&gt;Page Title&lt;/a&gt;
   &lt;/li&gt;
 &lt;/ul&gt;"></textarea>
-    <button id="processHrefs">Process HREFs</button>
+    <button id="processHrefs">Extract the links</button>
   </div>
   <script type="module" src="HREF extraction to spreadsheet.js"></script>
 </body>
