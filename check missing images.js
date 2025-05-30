@@ -47,7 +47,6 @@ function callFindUrlsAndModels(testType) {
                 }
                 else {
                     isMoreVehicleAvailable = false;
-                    console.log("pagination sem next page vailavbe");
                 }
             }
             else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
@@ -97,18 +96,14 @@ function callFindUrlsAndModels(testType) {
                     const imageUrl = imageUrlElement.dataset.src;
 
                     if (imageUrl) {
+                        if (PAGINATION_SCROLL_TYPE) {                         
 
-                        if (PAGINATION_SCROLL_TYPE) {
-                            const imageSize = await getImageFileSize(imageUrl);
-                            // WORKING! BUT THIS IMAGES SHOULD CAME FROM THE INPUT
-                            const referenceImageLink = 'https://cardealerstg.blob.core.windows.net/autocanada/vehicles/1345850/pictures/84d20820-6ddf-4b4c-98e6-3fc53c78d928-card.jpg'
-                            const imageSizeReference = await getImageFileSize(referenceImageLink);
-
-                            if (imageSize === imageSizeReference) {
+                            if (await isComingSoonImageByChatGPT(imageUrl)) {
                                 result.push({ model, trim, stockNumber, imageUrl });
                             }
-                        } else if ((VIEW_MORE_VEHICLES_SCROLL_TYPE)
-                            || (!PAGINATION_SCROLL_TYPE && !VIEW_MORE_VEHICLES_SCROLL_TYPE)) {
+                        } 
+                        else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
+
                             if (imageUrl.includes('better-photo.jpg')) {
                                 const alreadyExists = result.some(item => item.stockNumber === stockNumber);
                                 if (!alreadyExists) {
@@ -159,6 +154,25 @@ function callFindUrlsAndModels(testType) {
 
     //======================================= HELPERS ===============================================
 
+    async function isComingSoonImageByChatGPT(imageUrl) {
+        try {
+            const response = await chrome.runtime.sendMessage({
+                type: 'checkImage',
+                imageUrl: imageUrl
+            });
+            
+            if (response.success) {
+                return response.result;
+            } else {
+                console.error('Error checking image:', response.error);
+                return false;
+            }
+        } catch (error) {
+            console.error('Error sending message to background script:', error);
+            return false;
+        }
+    }
+
     async function getImageFileSize(url) {
         try {
             const response = await fetch(url, { method: 'HEAD' });
@@ -171,7 +185,7 @@ function callFindUrlsAndModels(testType) {
     }
 
     function isPaginationScrollType() {
-        return document.querySelector('nav.page-nav.flex.justify-center.lbx-paginator-nav') !== null;
+        return document.querySelector('div.lbx-paginator') !== null;
     }
     function getPaginationArrow() {
         return document.querySelector('.right-arrow');

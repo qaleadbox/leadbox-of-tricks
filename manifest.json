@@ -3,7 +3,10 @@
   "name": "Crawl Inventory Checker",
   "version": "1.4",
   "description": "Script to find images load problems.",
-  "permissions": ["scripting", "activeTab"],
+  "permissions": [
+    "scripting",
+    "activeTab"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -13,6 +16,18 @@
     }
   },
   "background": {
-    "service_worker": "background.js"
-  }
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "Image Checker/imageCheckerByOpenAI.js",
+        "config.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

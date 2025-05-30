@@ -1,3 +1,5 @@
+import { checkImageWithOpenAI } from './Image Checker/imageCheckerByOpenAI.js';
+
 const icons = [
   "./icons/16x16/icon1.png",
   "./icons/16x16/icon2.png",
@@ -14,3 +16,17 @@ function changeIcon() {
 }
 
 setInterval(changeIcon, 300);
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'checkImage') {
+        (async () => {
+            try {
+                const result = await checkImageWithOpenAI(request.imageUrl);
+                sendResponse({ success: true, result });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+});
