@@ -125,18 +125,24 @@
       text-shadow: none;
       cursor: pointer;
       border: none;
-      margin-left: 10px;
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      z-index: 1003;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     }
 
     .features-button:hover {
       background: linear-gradient(to bottom, #45a049, #4CAF50);
+      transform: scale(1.1);
+      transition: transform 0.2s ease;
     }
 
     .features-list {
       display: none;
-      position: absolute;
-      top: 40px;
-      right: 0;
+      position: fixed;
+      bottom: 40px;
+      right: 10px;
       width: 300px;
       max-height: calc(100vh - 100px);
       background: white;
@@ -197,17 +203,41 @@
       border-bottom: none;
     }
 
-    .feature-description {
+    .features-list ul ul {
+      margin-left: 15px;
+      margin-top: 5px;
+    }
+
+    .features-list ul ul li {
+      border-bottom: none;
+      padding: 2px 0;
       font-size: 12px;
       color: #888;
-      margin-top: 5px;
-      line-height: 1.4;
     }
 
     .feature-title {
       color: #333;
       font-weight: bold;
       margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .coming-soon {
+      font-size: 10px;
+      background: #ff9800;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: normal;
+    }
+
+    .feature-description {
+      font-size: 12px;
+      color: #666;
+      margin: 5px 0;
+      line-height: 1.4;
     }
 
     .feature-section {
@@ -222,7 +252,8 @@
       position: relative;
     }
 
-    .header-container:hover .features-list {
+    .features-button:hover + .features-list,
+    .features-list:hover {
       display: block;
     }
   </style>
@@ -231,60 +262,51 @@
 <body>
   <div class="header-container">
     <div class="header">
-      <h1>LeadBox of Tricks</h1>
-      <button class="features-button" id="featuresButton">+</button>
+      <h1>LeadBox of Tricks <span id="version"></span></h1>
     </div>
-    <div class="features-list" id="featuresList">
-      <h2>All Features</h2>
-      
-      <div class="feature-section">
-        <h3>Click to Use Features</h3>
-        <ul>
-          <li>
-            <div class="feature-title">HREF Extraction</div>
-            <div class="feature-description">
-              Extract links from sitemap HTML structure and export to spreadsheet format.
-            </div>
-            <ul>
-              <li>Paste sitemap HTML structure</li>
-              <li>Automatically extracts all links</li>
-              <li>Exports to spreadsheet format</li>
-            </ul>
-          </li>
-          <li>
-            <div class="feature-title">Missing Images Checker</div>
-            <div class="feature-description">
-              Scan and identify missing images in the current page.
-            </div>
-          </li>
-          <li>
-            <div class="feature-title">CSV Data Matcher</div>
-            <div class="feature-description">
-              Match CSV data with SRP cards information.
-            </div>
-          </li>
-        </ul>
-      </div>
+  </div>
 
-      <div class="feature-section">
-        <h3>Automatic Observer Features</h3>
-        <ul>
-          <li>
-            <div class="feature-title">LeadBox Admin Printer Icon</div>
-            <div class="feature-description">
-              Automatically adds a printer icon next to each magnifying glass in the leads list. 
-              The printer icon uses the native LeadBox design and opens the print view in the same 
-              popup style as the magnifying glass. Works automatically with dynamically loaded content.
-            </div>
-            <ul>
-              <li>Uses native LeadBox printer icon for consistency</li>
-              <li>Opens in same popup style as magnifying glass</li>
-              <li>Works with dynamically loaded content</li>
-              <li>Maintains same styling and behavior</li>
-            </ul>
-          </li>
-        </ul>
-      </div>
+  <button class="features-button" id="featuresButton">+</button>
+  <div class="features-list" id="featuresList">
+    <h2>All Features</h2>
+    
+    <div class="feature-section">
+      <h3>Click to Use Features</h3>
+      <ul>
+        <li>
+          <div class="feature-title">HREF Extraction</div>
+          <div class="feature-description">Extract links from sitemap HTML structure and export to spreadsheet format.</div>
+          <ul>
+            <li>Paste sitemap HTML structure</li>
+            <li>Automatically extracts all links</li>
+            <li>Exports to spreadsheet format</li>
+          </ul>
+        </li>
+        <li>
+          <div class="feature-title">Missing Images Checker <span class="coming-soon">Coming Soon</span></div>
+          <div class="feature-description">Scan and identify coming soon images in the current page.</div>
+        </li>
+        <li>
+          <div class="feature-title">CSV Data Matcher <span class="coming-soon">Coming Soon</span></div>
+          <div class="feature-description">Match CSV data with SRP cards information.</div>
+        </li>
+      </ul>
+    </div>
+
+    <div class="feature-section">
+      <h3>Automatic Observer Features</h3>
+      <ul>
+        <li>
+          <div class="feature-title">LeadBox Admin Printer Icon</div>
+          <div class="feature-description">Automatically adds a printer icon next to each magnifying glass in the leads list.</div>
+          <ul>
+            <li>Uses native LeadBox printer icon for consistency</li>
+            <li>Opens in same popup style as magnifying glass</li>
+            <li>Works with dynamically loaded content</li>
+            <li>Maintains same styling and behavior</li>
+          </ul>
+        </li>
+      </ul>
     </div>
   </div>
 
@@ -312,6 +334,7 @@ Steps:
     <button id="processHrefs">Extract the links</button>
   </div>
   <script type="module" src="HREF extraction to spreadsheet.js"></script>
+  <script type="module" src="version.js"></script>
 
 </body>
 
