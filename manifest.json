@@ -1,11 +1,15 @@
 {
   "manifest_version": 3,
   "name": "LeadBox of Tricks",
-  "version": "1.5",
+  "version": "1.6",
   "description": "A toolbox designed to boost your productivity.",
   "permissions": [
     "scripting",
-    "activeTab"
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://my.leadboxhq.net/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -28,6 +32,12 @@
       "matches": [
         "<all_urls>"
       ]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://my.leadboxhq.net/*"],
+      "js": ["hack backend admin printer icon.js"]
     }
   ]
 }

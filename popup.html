@@ -2,7 +2,7 @@
 <html>
 
 <head>
-  <title>LeadBoxHQ Tools</title>
+  <title>LeadBox of Tricks</title>
   <style>
     body {
       width: 480px;
@@ -10,23 +10,31 @@
       font-family: "Tahoma", "Segoe UI", sans-serif;
       background: linear-gradient(to bottom, #3965c3, #254b8e);
       color: white;
-      border: 1px solid #113d8f;
-      border-radius: 8px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
       position: relative;
+      min-height: 400px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #5c85d6;
     }
 
     h1 {
       font-size: 18px;
-      margin: 0 0 15px 0;
-      padding: 5px 0;
-      border-bottom: 1px solid #5c85d6;
+      margin: 0;
       text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
     }
 
     textarea {
       width: 100%;
-      height: 200px;
+      height: 180px;
       margin: 10px 0;
       padding: 8px;
       border: 1px solid #7f9db9;
@@ -99,14 +107,188 @@
       white-space: pre-line;
       color: black;
     }
+
     .bold {
       font-weight: bold;
+    }
+
+    /* Updated features button styles */
+    .features-button {
+      width: 24px !important;
+      height: 24px;
+      border-radius: 50%;
+      font-size: 16px;
+      padding: 0;
+      line-height: 24px;
+      text-align: center;
+      background: linear-gradient(to bottom, #4CAF50, #45a049);
+      color: white;
+      text-shadow: none;
+      cursor: pointer;
+      border: none;
+      margin-left: 10px;
+    }
+
+    .features-button:hover {
+      background: linear-gradient(to bottom, #45a049, #4CAF50);
+    }
+
+    .features-list {
+      display: none;
+      position: absolute;
+      top: 40px;
+      right: 0;
+      width: 300px;
+      max-height: calc(100vh - 100px);
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      z-index: 999;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .features-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .features-list::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    .features-list::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+
+    .features-list::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+
+    .features-list h2 {
+      color: #333;
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 5px;
+    }
+
+    .features-list h3 {
+      color: #4CAF50;
+      margin: 15px 0 10px 0;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .features-list ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .features-list li {
+      color: #666;
+      padding: 5px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .features-list li:last-child {
+      border-bottom: none;
+    }
+
+    .feature-description {
+      font-size: 12px;
+      color: #888;
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+
+    .feature-title {
+      color: #333;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .feature-section {
+      margin-bottom: 20px;
+    }
+
+    .feature-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .header-container {
+      position: relative;
+    }
+
+    .header-container:hover .features-list {
+      display: block;
     }
   </style>
 </head>
 
 <body>
-  <h1>LeadBoxHQ Extension</h1>
+  <div class="header-container">
+    <div class="header">
+      <h1>LeadBox of Tricks</h1>
+      <button class="features-button" id="featuresButton">+</button>
+    </div>
+    <div class="features-list" id="featuresList">
+      <h2>All Features</h2>
+      
+      <div class="feature-section">
+        <h3>Click to Use Features</h3>
+        <ul>
+          <li>
+            <div class="feature-title">HREF Extraction</div>
+            <div class="feature-description">
+              Extract links from sitemap HTML structure and export to spreadsheet format.
+            </div>
+            <ul>
+              <li>Paste sitemap HTML structure</li>
+              <li>Automatically extracts all links</li>
+              <li>Exports to spreadsheet format</li>
+            </ul>
+          </li>
+          <li>
+            <div class="feature-title">Missing Images Checker</div>
+            <div class="feature-description">
+              Scan and identify missing images in the current page.
+            </div>
+          </li>
+          <li>
+            <div class="feature-title">CSV Data Matcher</div>
+            <div class="feature-description">
+              Match CSV data with SRP cards information.
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="feature-section">
+        <h3>Automatic Observer Features</h3>
+        <ul>
+          <li>
+            <div class="feature-title">LeadBox Admin Printer Icon</div>
+            <div class="feature-description">
+              Automatically adds a printer icon next to each magnifying glass in the leads list. 
+              The printer icon uses the native LeadBox design and opens the print view in the same 
+              popup style as the magnifying glass. Works automatically with dynamically loaded content.
+            </div>
+            <ul>
+              <li>Uses native LeadBox printer icon for consistency</li>
+              <li>Opens in same popup style as magnifying glass</li>
+              <li>Works with dynamically loaded content</li>
+              <li>Maintains same styling and behavior</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
   <button id="check missing images" disabled>Check missing images</button>
   <script type="module" src="check missing images.js"></script>
 
@@ -131,6 +313,38 @@ Steps:
     <button id="processHrefs">Extract the links</button>
   </div>
   <script type="module" src="HREF extraction to spreadsheet.js"></script>
+
+  <script>
+    // Toggle features list
+    document.getElementById('featuresButton').addEventListener('click', function() {
+      const featuresList = document.getElementById('featuresList');
+      featuresList.classList.toggle('active');
+    });
+
+    // Close features list when clicking outside
+    document.addEventListener('click', function(event) {
+      const featuresList = document.getElementById('featuresList');
+      const featuresButton = document.getElementById('featuresButton');
+      if (!featuresList.contains(event.target) && !featuresButton.contains(event.target)) {
+        featuresList.classList.remove('active');
+      }
+    });
+
+    // Toggle hrefInput section
+    document.getElementById('HREF extraction to spreadsheet').addEventListener('click', function() {
+        const hrefInput = document.getElementById('hrefInput');
+        if (hrefInput.style.display === 'none' || hrefInput.style.display === '') {
+            hrefInput.style.display = 'block';
+            // Update arrow
+            this.textContent = 'HREF extraction to spreadsheet ▲';
+        } else {
+            hrefInput.style.display = 'none';
+            // Update arrow
+            this.textContent = 'HREF extraction to spreadsheet ▼';
+        }
+    });
+
+  </script>
 </body>
 
 </html>
