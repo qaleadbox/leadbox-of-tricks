@@ -1,4 +1,5 @@
 import { checkImageWithOpenAI } from './Image Checker/imageCheckerByOpenAI.js';
+import { checkImageWithOCR } from './Image Checker/imageCheckerByOCR.js';
 
 const icons = [
   "./icons/16x16/icon1.png",
@@ -16,10 +17,24 @@ function changeIcon() {
 setInterval(changeIcon, 300);
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === 'checkImage') {
+    if (request.type === 'checkImageByOpenAI') {
         (async () => {
             try {
                 const result = await checkImageWithOpenAI(request.imageUrl);
+                sendResponse({ success: true, result });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'checkImageByOCR') {
+        (async () => {
+            try {
+                const result = await checkImageWithOCR(request.imageUrl);
                 sendResponse({ success: true, result });
             } catch (error) {
                 sendResponse({ success: false, error: error.message });
