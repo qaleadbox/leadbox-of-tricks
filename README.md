@@ -31,18 +31,18 @@
 
 ```
 root/
-├── extensions -> Browsers extensions folder.
-    └── Google Chrome
-        ├── Inventory Crawl Chrome Extension.crx -> Chrome extension
-        └── Inventory Crawl Chrome Extension.pem - Chrome extension permission
 ├── icons -> Extension Icon's folder.
     ├── 16x16 -> 16x16 icons
     ├── 48x48 -> 48x48 icons
     └── 128x128 -> 128x128 icons
+├── Image Checker -> Checking coming soon images module.
+    ├── imageCheckerByOCR.js -> OCR (Optical Character Recognition) integration Script.
+    └── imageCheckerByOpenAI.js -> image checker by Open AI integration Script.
 ├── popup.html -> Interface HTML file.
 ├── check missing images.js -> Crawl coming soon images script.
 ├── match csv data with SRP cards information.js -> CSV-SRP Cards data comparisson script.
 ├── HREF extraction to spreadsheet.js -> HREF extrator script.
+├── hack backend admin printer icon.js -> Customized listener script for backend admin.
 ├── background.js -> Background behaviour file 
 ├── readme.md -> **This** Markdown instructions file
 └── manifest.json -> Main configuration file.

@@ -172,12 +172,11 @@ function callFindUrlsAndModels(testType) {
 
     addProcessingStyles();
 
+    // Reset all cards to waiting state at start
     document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').forEach(card => {
-        if (!card.classList.contains('processed-card') && 
-            !card.classList.contains('coming-soon-card')) {
-            card.classList.add('waiting-card');
-            card.setAttribute('data-processing-info', 'Waiting...');
-        }
+        card.classList.remove('processed-card', 'coming-soon-card', 'processing-card');
+        card.classList.add('waiting-card');
+        card.setAttribute('data-processing-info', 'Waiting...');
     });
 
     function updateProcessingInfo(element, currentTime, lastTime, isProcessed = false, isComingSoon = false) {
@@ -243,7 +242,7 @@ function callFindUrlsAndModels(testType) {
         for (const element of elements) {
             const modelElement = element.querySelector('.value__model');
             const trimElement = element.querySelector('.value__trim');
-            const stockNumberElement = element.querySelector('.stock_label') || element.querySelector('.stock_number');
+            const stockNumberElement = element.querySelector('.stock_label') || element.querySelector('.stock_number') || element.querySelector('.value__stock');
             const imageUrlElement = element.querySelector('.main-img');
             const sourceElement = element.querySelector('source');
 
@@ -259,16 +258,6 @@ function callFindUrlsAndModels(testType) {
                     } else {
                         stockNumber = stockNumberElement.textContent.trim();
                     }
-                    
-                    // console.log('Processing vehicle:', {
-                    //     model,
-                    //     trim,
-                    //     stockNumber,
-                    //     hasImageElement: !!imageUrlElement,
-                    //     hasSourceElement: !!sourceElement,
-                    //     imageSrc: imageUrlElement?.dataset.src,
-                    //     sourceSrcset: sourceElement?.srcset
-                    // });
 
                     let imageUrl = '';
                     if (imageUrlElement?.dataset.src) {
@@ -278,8 +267,6 @@ function callFindUrlsAndModels(testType) {
                     } else if (imageUrlElement?.src) {
                         imageUrl = imageUrlElement.src;
                     }
-
-                    console.log('Final image URL:', imageUrl);
 
                     if (imageUrl && stockNumber) {
                         element.classList.remove('waiting-card');
@@ -295,10 +282,8 @@ function callFindUrlsAndModels(testType) {
                         } 
                         else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
                             await highlightCard(element, async () => {
-                                const isBetterPhoto = imageUrl.includes('better-photo.jpg') || imageUrl.includes('spinner.gif');
-                                console.log('Is better photo:', isBetterPhoto, 'for stock:', stockNumber);
                                 
-                                if (isBetterPhoto) {
+                                if (isBetterPhotoImage(imageUrl)) {
                                     const alreadyExists = result.some(item => item.stockNumber === stockNumber);
                                     if (!alreadyExists) {
                                         result.push({ model, trim, stockNumber, imageUrl });
@@ -308,30 +293,29 @@ function callFindUrlsAndModels(testType) {
                                 return false;
                             });
                         } else {
-                            console.log('Infinity scrolly');
                             const previousVehicleCount = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
-                            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                            const currentVehicleCount = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
                             
-                            if (currentVehicleCount > previousVehicleCount) {
-                                await highlightCard(element, async () => {
-                                    const isBetterPhoto = imageUrl.includes('better-photo.jpg') || imageUrl.includes('spinner.gif');
-                                    console.log('Is better photo:', isBetterPhoto, 'for stock:', stockNumber);
-                                    
-                                    if (isBetterPhoto) {
-                                        const alreadyExists = result.some(item => item.stockNumber === stockNumber);
-                                        if (!alreadyExists) {
-                                            result.push({ model, trim, stockNumber, imageUrl });
-                                            return true;
-                                        }
+                            await highlightCard(element, async () => {
+                                if (isBetterPhotoImage(imageUrl)) {
+                                    const alreadyExists = result.some(item => item.stockNumber === stockNumber);
+                                    if (!alreadyExists) {
+                                        result.push({ model, trim, stockNumber, imageUrl });
+                                        return true;
                                     }
-                                    return false;
-                                });
-                            } else {
-                                console.log('No new vehicles loaded, breaking loop');
-                                isMoreVehicleAvailable = false;
-                                break;
+                                }
+                                return false;
+                            });
+
+                            const waitingCards = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1.waiting-card').length;
+                            if (waitingCards === 0) {
+                                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                                await new Promise(resolve => setTimeout(resolve, 200));
+                                const currentVehicleCount = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
+                                
+                                if (currentVehicleCount === previousVehicleCount) {
+                                    isMoreVehicleAvailable = false;
+                                    break;
+                                }
                             }
                         }
                     } else {
@@ -522,5 +506,9 @@ function callFindUrlsAndModels(testType) {
     function isViewMoreButtonVisible() {
         const btn = document.querySelector('button.lbx-load-more-btn');
         return btn && btn.offsetParent !== null;
+    }
+
+    function isBetterPhotoImage(imageUrl) {
+        return imageUrl.includes('better-photo.jpg') || imageUrl.includes('spinner.gif');
     }
 }
