@@ -4,20 +4,24 @@
 
 ### Installing the extension 
 
-[https://gyazo.com/4c47868b5ad910bb0403d626b518b906]
+[![Installation Guide](https://gyazo.com/4c47868b5ad910bb0403d626b518b906)](https://gyazo.com/4c47868b5ad910bb0403d626b518b906)
 
 1. Open CHROME BROWSER.
 2. Access `chrome://extensions/`.
 3. Enable **Developer Mode**.
-4. Download **Inventory Crawl Chrome Extension.crx** file.
-5. Drop file into Google Chrome extensions tab, then confirm.
-6. On "Safety Checks", on LeadBox of tricks, click on three dots, then Keep this extension.
+4. Clone/Download the repository https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension.
+5. Click on [Load unpacked](https://gyazo.com/7a6fa8e891eb286d8b264c1d905a55a5)
+6. Select the project folder.
+7. Some sites use API to make the reviewings, inform the API KEY if is necessary.
+   7a. Create a file on the project's root called "/config.js"
+   7b. Crete a constant on it
+   `export const OCR_API_KEY = '<your-api-key-here>';`
 
 # How to use
 
 ## Module001: Convert HREF from LI elements to paste on spreadsheet cells
 
-[https://gyazo.com/01bcde274738404aeabef2402b78b0fe]
+[![Module001 Guide](https://gyazo.com/01bcde274738404aeabef2402b78b0fe)](https://gyazo.com/01bcde274738404aeabef2402b78b0fe)
 
 1. Access the SiteMap
 2. Inspect the elements list

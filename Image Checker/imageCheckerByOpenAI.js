@@ -1,4 +1,4 @@
-import { OPENAI_API_KEY, OPENAI_API_URL } from '../config.js';
+// import { OPENAI_API_KEY, OPENAI_API_URL } from '../config.js';
 
 export async function checkImageWithOpenAI(imageUrl) {
     try {        
