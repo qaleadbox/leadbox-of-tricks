@@ -16,41 +16,39 @@ document.getElementById('processCSV').addEventListener('click', async () => {
         return;
     }
 
-    chrome.storage.local.set({ 'csvData': csvData }, async () => {
-        const testType = 'match-csv-data-with-srp-cards-information';
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: callFindUrlsAndModels,
-            args: [testType]
-        });
+    const testType = 'match-csv-data-with-srp-cards-information';
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: callFindUrlsAndModels,
+        args: [testType, csvData]
     });
 });
 
-function callFindUrlsAndModels(testType) {
-    findUrlsAndModels(testType);
+function callFindUrlsAndModels(testType, csvData) {
+    findUrlsAndModels(testType, csvData);
 
-    async function findUrlsAndModels(testType) {
-		let scannedVehicles = 0;
+    async function findUrlsAndModels(testType, csvData) {
+        let scannedVehicles = 0;
         let result = {};
 
-		scannedVehicles = await scrollDownUntilLoadAllVehicles(scannedVehicles, result);
+        scannedVehicles = await scrollDownUntilLoadAllVehicles(scannedVehicles, result, csvData);
 
-		const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
-		console.log(message);
-		console.log(result);
+        const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
+        console.log(message);
+        console.log(result);
         
-		exportToCSVFile(result, testType);
+        exportToCSVFile(result, testType);
     }
 
-	async function scrollDownUntilLoadAllVehicles(scannedVehicles, result) {
-		let actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-		let lastElementsLoaded = 0;
+    async function scrollDownUntilLoadAllVehicles(scannedVehicles, result, csvData) {
+        let actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
+        let lastElementsLoaded = 0;
         let totalElementsLoaded = 0;
 
-		while (actualElementsLoaded !== lastElementsLoaded) {
-			lastElementsLoaded = actualElementsLoaded;
-			window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        while (actualElementsLoaded !== lastElementsLoaded) {
+            lastElementsLoaded = actualElementsLoaded;
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
             
             const viewMoreButton = document.querySelector('button.lbx-load-more-btn');
             const paginationRightArrow = document.querySelector('.right-arrow');
@@ -64,14 +62,13 @@ function callFindUrlsAndModels(testType) {
                 paginationRightArrow.click();
             }
 
-			await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-			actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
+            actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
                 
             const windowLocationHostname = window.location.hostname;
 
             switch (windowLocationHostname){            
-                
                 case "landrovertoronto.ca":
                 case "jaguartoronto.com":
                 case "countychevroletessex.com":
@@ -83,16 +80,17 @@ function callFindUrlsAndModels(testType) {
                 case "nursechevrolet.kinsta.cloud":
                     totalElementsLoaded += actualElementsLoaded;
                     break;
-                }            
-                console.warn(`${totalElementsLoaded} elements loaded.`);
-                scannedVehicles = await readVehiclesAndAddResults(result);           
-		}
-		console.warn("Finished scrolling, all vehicles loaded.");
+            }            
+            console.warn(`${totalElementsLoaded} elements loaded.`);
+            scannedVehicles = await readVehiclesAndAddResults(result, csvData);           
+        }
+        console.warn("Finished scrolling, all vehicles loaded.");
         return scannedVehicles;
-	}
+    }
 
-    async function readVehiclesAndAddResults(result) {
+    async function readVehiclesAndAddResults(result, csvData) {
         const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
+        const csvMap = await csvParser(csvData);
     
         const FIELD_MAP = {
             DEALER_ID:                  { srp: "",                              csv: "Dealer Id" },
@@ -139,10 +137,9 @@ function callFindUrlsAndModels(testType) {
     
         for (const srpVehicle of allVehicleCards) {
             const srpStockNumber = await getTextFromVehicleCard(srpVehicle, FIELD_MAP["STOCK_NUMBER"].srp);
-            const csvStockNumber = await getVehicleValue(srpStockNumber, FIELD_MAP["STOCK_NUMBER"].csv);
-            const csvVehicle = await getCSVVehicleData(srpStockNumber);
+            const csvVehicle = csvMap[srpStockNumber];
     
-            if (srpStockNumber === csvStockNumber && csvVehicle && typeof csvVehicle === 'object') {
+            if (srpStockNumber && csvVehicle && typeof csvVehicle === 'object') {
                 for (const [map_key, map] of Object.entries(FIELD_MAP)) {
                     const srpSelector = map.srp;
                     const csvKey = map.csv;
@@ -187,9 +184,8 @@ function callFindUrlsAndModels(testType) {
     
         return allVehicleCards.length;
     }
-    
 
-	function exportToCSVFile(data, testType) {
+    function exportToCSVFile(data, testType) {
         if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
             alert('No data to export!');
             return;
@@ -212,10 +208,6 @@ function callFindUrlsAndModels(testType) {
         link.download = filename;
         link.click();
     }
-    
-    
-
-    //======================================= HELPERS ===============================================
 
     function normalizeValue(value, field) {
         if (!value) return '';
@@ -231,13 +223,10 @@ function callFindUrlsAndModels(testType) {
     
         return normalized;
     }
-    
 
     async function getTextFromVehicleCard(vehicleCardElement, selector) {
-
-        try{
+        try {
             if(vehicleCardElement) {
-
                 vehicleCard = vehicleCardElement.querySelector(selector);
                 if (!vehicleCard) return "";
                 const text = vehicleCard.textContent.trim();
@@ -248,26 +237,6 @@ function callFindUrlsAndModels(testType) {
             return "";
         }
     }
-
-    async function fetchCSVData() {
-        return new Promise((resolve, reject) => {
-            chrome.storage.local.get(['csvData'], function(result) {
-                if (chrome.runtime.lastError) {
-                    console.error("Error fetching CSV data:", chrome.runtime.lastError);
-                    reject(chrome.runtime.lastError);
-                    return;
-                }
-                
-                if (!result.csvData) {
-                    console.error("No CSV data found in storage");
-                    reject(new Error("No CSV data found. Please provide CSV data through the popup."));
-                    return;
-                }
-                
-                resolve(result.csvData);
-            });
-        });
-    }
     
     async function csvParser(csvVehicle) {
         const lines = csvVehicle.trim().split('\n');
@@ -277,34 +246,18 @@ function callFindUrlsAndModels(testType) {
         let values, entry = {};
       
         for (let i = 1; i < lines.length; i++) {
-          values = lines[i].split('|');
-          entry = {};
+            values = lines[i].split('|');
+            entry = {};
       
-          headers.forEach((key, index) => {
-            entry[key.trim()] = values[index]?.trim() ?? '';
-          });
+            headers.forEach((key, index) => {
+                entry[key.trim()] = values[index]?.trim() ?? '';
+            });
       
-          const stockNumber = entry['StockNumber'];
-          if (stockNumber) {
-            stockDataMap[stockNumber] = entry;
-          }
+            const stockNumber = entry['StockNumber'];
+            if (stockNumber) {
+                stockDataMap[stockNumber] = entry;
+            }
         }
         return stockDataMap;
     }
-
-    async function getCSVVehicleData(stockNumber) {
-        let cachedCSVMap = null; 
-        const csvVehicle = await fetchCSVData(); 
-
-        cachedCSVMap = await csvParser(csvVehicle);
-        
-        return cachedCSVMap[stockNumber] || null;
-    }
-        
-    async function getVehicleValue(stockNumber, valueKey) {
-        const vehicleData = await getCSVVehicleData(stockNumber);
-        if (!vehicleData) return null;
-        
-        return vehicleData[valueKey] ?? null;
-    }      
 }
