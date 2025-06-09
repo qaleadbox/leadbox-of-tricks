@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LeadBox of Tricks",
-  "version": "2.0",
+  "version": "2.1",
   "description": "A toolbox designed to boost your productivity.",
   "permissions": [
     "scripting",

@@ -1,4 +1,3 @@
-// Get the extension version from manifest
 const manifest = chrome.runtime.getManifest();
 const currentVersion = manifest.version;
 document.getElementById('version').textContent = `v${currentVersion}`;

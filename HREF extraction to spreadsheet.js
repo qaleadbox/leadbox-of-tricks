@@ -15,20 +15,21 @@ document.getElementById('processHrefs').addEventListener('click', async () => {
         return;
     }
 
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(liElements, 'text/html');
-    const links = Array.from(doc.getElementsByTagName('a'));
-    
-    if (links.length === 0) {
-        alert('No links found in the pasted content');
-        return;
-    }
-    
-    const hrefs = links.map(link => link.href);
-    
-    const textContent = hrefs.join('\n');
-    
     try {
+        await chrome.runtime.sendMessage({ type: 'startProcessing' });
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(liElements, 'text/html');
+        const links = Array.from(doc.getElementsByTagName('a'));
+        
+        if (links.length === 0) {
+            alert('No links found in the pasted content');
+            return;
+        }
+        
+        const hrefs = links.map(link => link.href);
+        const textContent = hrefs.join('\n');
+        
         await navigator.clipboard.writeText(textContent);
         
         const message = `Successfully copied ${hrefs.length} HREF${hrefs.length === 1 ? '' : 's'} to clipboard!`;
@@ -39,5 +40,11 @@ document.getElementById('processHrefs').addEventListener('click', async () => {
     } catch (err) {
         alert('Failed to copy to clipboard. Please try again.');
         console.error('Failed to copy to clipboard:', err);
+    } finally {
+        try {
+            await chrome.runtime.sendMessage({ type: 'stopProcessing' });
+        } catch (error) {
+            console.error('Error stopping processing:', error);
+        }
     }
 });

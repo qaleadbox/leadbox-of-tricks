@@ -498,6 +498,7 @@ Steps:
 
   <script type="module" src="HREF extraction to spreadsheet.js"></script>
   <script type="module" src="version.js"></script>
+  <script type="module" src="popup.js"></script>
 
   <button class="docs-button" title="View Documentation">i</button>
   <div class="docs-popup">
@@ -533,86 +534,6 @@ Steps:
       <div class="topic-description">Project objectives and future plans</div>
     </a>
   </div>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Documentation popup behavior
-      const docsButton = document.querySelector('.docs-button');
-      const docsPopup = document.querySelector('.docs-popup');
-      let docsHideTimeout;
-
-      docsButton.addEventListener('mouseenter', function() {
-        clearTimeout(docsHideTimeout);
-        docsPopup.style.display = 'block';
-        setTimeout(() => docsPopup.classList.add('visible'), 10);
-      });
-
-      docsButton.addEventListener('mouseleave', function() {
-        docsHideTimeout = setTimeout(() => {
-          docsPopup.classList.remove('visible');
-          setTimeout(() => {
-            if (!docsPopup.matches(':hover')) {
-              docsPopup.style.display = 'none';
-            }
-          }, 200);
-        }, 100);
-      });
-
-      docsPopup.addEventListener('mouseenter', function() {
-        clearTimeout(docsHideTimeout);
-        docsPopup.classList.add('visible');
-      });
-
-      docsPopup.addEventListener('mouseleave', function() {
-        docsHideTimeout = setTimeout(() => {
-          docsPopup.classList.remove('visible');
-          setTimeout(() => {
-            if (!docsButton.matches(':hover')) {
-              docsPopup.style.display = 'none';
-            }
-          }, 200);
-        }, 100);
-      });
-
-      // Features popup behavior
-      const featuresButton = document.querySelector('.features-button');
-      const featuresList = document.querySelector('.features-list');
-      let featuresHideTimeout;
-
-      featuresButton.addEventListener('mouseenter', function() {
-        clearTimeout(featuresHideTimeout);
-        featuresList.style.display = 'block';
-        setTimeout(() => featuresList.classList.add('visible'), 10);
-      });
-
-      featuresButton.addEventListener('mouseleave', function() {
-        featuresHideTimeout = setTimeout(() => {
-          featuresList.classList.remove('visible');
-          setTimeout(() => {
-            if (!featuresList.matches(':hover')) {
-              featuresList.style.display = 'none';
-            }
-          }, 200);
-        }, 100);
-      });
-
-      featuresList.addEventListener('mouseenter', function() {
-        clearTimeout(featuresHideTimeout);
-        featuresList.classList.add('visible');
-      });
-
-      featuresList.addEventListener('mouseleave', function() {
-        featuresHideTimeout = setTimeout(() => {
-          featuresList.classList.remove('visible');
-          setTimeout(() => {
-            if (!featuresButton.matches(':hover')) {
-              featuresList.style.display = 'none';
-            }
-          }, 200);
-        }, 100);
-      });
-    });
-  </script>
 
 </body>
 

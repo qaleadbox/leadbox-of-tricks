@@ -24,7 +24,6 @@ function duplicateMagnifyingGlass(original) {
     original.parentNode.insertBefore(printLink, original.nextSibling);
 }
 
-// Only run this code if we're on the specific internal leads pages
 const targetUrls = [
     'https://my.leadboxhq.net/leads/internal',
     'https://car-dealer-production-qa.azurewebsites.net/leads/internal'

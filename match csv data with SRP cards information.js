@@ -26,19 +26,44 @@ document.getElementById('processCSV').addEventListener('click', async () => {
 });
 
 function callFindUrlsAndModels(testType, csvData) {
+    let scannedVehicles = 0;
+    let result = {};
+    let isProcessing = true;
+    let globalStyleElement = null;
+
+    chrome.runtime.sendMessage({ 
+        type: 'startProcessing'
+    }, (response) => {
+        if (!response || !response.success) {
+            console.error('Failed to start processing');
+            return;
+        }
+    });
+
     findUrlsAndModels(testType, csvData);
 
     async function findUrlsAndModels(testType, csvData) {
-        let scannedVehicles = 0;
-        let result = {};
+        try {
+            scannedVehicles = await scrollDownUntilLoadAllVehicles(scannedVehicles, result, csvData);
 
-        scannedVehicles = await scrollDownUntilLoadAllVehicles(scannedVehicles, result, csvData);
-
-        const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
-        console.log(message);
-        console.log(result);
-        
-        exportToCSVFile(result, testType);
+            const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
+            console.log(message);
+            console.log(result);
+            
+            exportToCSVFile(result, testType);
+        } finally {
+            if (globalStyleElement) {
+                globalStyleElement.remove();
+            }
+            chrome.runtime.sendMessage({ 
+                type: 'stopProcessing'
+            }, (response) => {
+                if (!response || !response.success) {
+                    console.error('Failed to stop processing');
+                }
+                isProcessing = false;
+            });
+        }
     }
 
     async function scrollDownUntilLoadAllVehicles(scannedVehicles, result, csvData) {

@@ -1,6 +1,3 @@
-// Remove the import since we're not using config.js anymore
-// import { OCR_API_KEY } from '../config.js';
-
 let comingSoonImageSizes = new Set();
 
 function loadFromStorage() {
@@ -41,7 +38,6 @@ async function getImageFileSize(url) {
 
 export async function checkImageWithOCR(imageUrl) {
     try {
-        // Get OCR key from storage
         const storageResult = await chrome.storage.local.get(['ocrKey']);
         const ocrKey = storageResult.ocrKey;
 

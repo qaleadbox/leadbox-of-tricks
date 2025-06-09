@@ -9,6 +9,14 @@ function cleanupStyles() {
                 if (styleElement) {
                     styleElement.remove();
                 }
+                document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').forEach(card => {
+                    card.classList.remove('processed-card', 'coming-soon-card', 'processing-card', 'waiting-card');
+                    card.removeAttribute('data-processing-info');
+                });
+                const cleanupButton = document.querySelector('#cleanup-highlights-button');
+                if (cleanupButton) {
+                    cleanupButton.remove();
+                }
             }
         });
     });
@@ -19,7 +27,6 @@ document.getElementById('check missing images').addEventListener('click', async 
     const ocrKeyTextarea = document.getElementById('ocrKey');
     const saveOcrKeyButton = document.getElementById('saveOcrKey');
 
-    // Check if we're on a page that uses OCR
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const isOcrRequired = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -29,16 +36,13 @@ document.getElementById('check missing images').addEventListener('click', async 
     });
 
     if (isOcrRequired[0].result) {
-        // Check if OCR key exists in storage
         const storageResult = await chrome.storage.local.get(['ocrKey']);
         if (!storageResult.ocrKey) {
-            // Show OCR key input if no key is found
             ocrInput.style.display = 'block';
             return;
         }
     }
 
-    // If OCR key exists or not required, proceed with the check
     const testType = event.target.textContent.trim().toLowerCase().replace(/\s+/g, '-');
     cleanupStyles();
     chrome.scripting.executeScript({
@@ -48,7 +52,6 @@ document.getElementById('check missing images').addEventListener('click', async 
     });
 });
 
-// Handle OCR key saving
 document.getElementById('saveOcrKey').addEventListener('click', async () => {
     const ocrKeyTextarea = document.getElementById('ocrKey');
     const ocrInput = document.getElementById('ocrInput');
@@ -57,14 +60,12 @@ document.getElementById('saveOcrKey').addEventListener('click', async () => {
     if (ocrKey) {
         await chrome.storage.local.set({ ocrKey });
         ocrInput.style.display = 'none';
-        // Trigger the check missing images functionality after saving the key
         document.getElementById('check missing images').click();
     } else {
         alert('Please enter a valid OCR key');
     }
 });
 
-// Load saved OCR key if it exists
 chrome.storage.local.get(['ocrKey'], (result) => {
     if (result.ocrKey) {
         document.getElementById('ocrKey').value = result.ocrKey;
@@ -76,6 +77,17 @@ function callFindUrlsAndModels(testType) {
     let result = [];
     let lastProcessingTime = 0;
     let globalStyleElement = null;
+    let isProcessing = true;
+
+    try {
+        chrome.runtime.sendMessage({ 
+            type: 'startProcessing'
+        }).catch(error => {
+            console.warn('Could not send startProcessing message:', error);
+        });
+    } catch (error) {
+        console.warn('Error sending startProcessing message:', error);
+    }
 
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
@@ -218,7 +230,6 @@ function callFindUrlsAndModels(testType) {
 
     addProcessingStyles();
 
-    // Reset all cards to waiting state at start
     document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').forEach(card => {
         card.classList.remove('processed-card', 'coming-soon-card', 'processing-card');
         card.classList.add('waiting-card');
@@ -262,6 +273,7 @@ function callFindUrlsAndModels(testType) {
             clearInterval(timerInterval);
             
             element.classList.remove('processing-card');
+            
             if (result) {
                 element.classList.add('coming-soon-card');
                 updateProcessingInfo(element, processingTime, lastProcessingTime, true, true);
@@ -328,7 +340,6 @@ function callFindUrlsAndModels(testType) {
                         } 
                         else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
                             await highlightCard(element, async () => {
-                                
                                 if (isBetterPhotoImage(imageUrl)) {
                                     const alreadyExists = result.some(item => item.stockNumber === stockNumber);
                                     if (!alreadyExists) {
@@ -392,16 +403,26 @@ function callFindUrlsAndModels(testType) {
         }
     }
 
-    findUrlsAndModels(testType);
-
     async function findUrlsAndModels(testType) {
-        scannedVehicles = await scrollDownUntilLoadAllVehicles();
+        try {
+            scannedVehicles = await scrollDownUntilLoadAllVehicles();
+            const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
+            console.log(message);
+            console.log(result);
 
-        const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
-        console.log(message);
-        console.log(result);
-
-        exportToCSVFile(result, testType);
+            exportToCSVFile(result, testType);
+            addCleanupButton();
+        } finally {
+            if (observer) {
+                observer.disconnect();
+            }
+            try {
+                await chrome.runtime.sendMessage({ type: 'stopProcessing' });
+            } catch (error) {
+                console.warn('Could not send stopProcessing message:', error);
+            }
+            isProcessing = false;
+        }
     }
 
     async function scrollDownUntilLoadAllVehicles() {
@@ -493,11 +514,12 @@ function callFindUrlsAndModels(testType) {
                 imageUrl: imageUrl
             });
             
-            if (response.success && response.result) {
+            if (response && response.success && response.result) {
                 return true;
             }
+            return false;
         } catch (error) {
-            console.error('Error checking image with OCR:', error);
+            console.warn('Error checking image with OCR:', error);
             return false;
         }
     }
@@ -509,14 +531,13 @@ function callFindUrlsAndModels(testType) {
                 imageUrl: imageUrl
             });
             
-            if (response.success) {
+            if (response && response.success) {
                 return response.result;
-            } else {
-                console.error('Error checking image:', response.error);
-                return false;
             }
+            console.warn('Error checking image:', response?.error || 'Unknown error');
+            return false;
         } catch (error) {
-            console.error('Error sending message to background script:', error);
+            console.warn('Error sending message to background script:', error);
             return false;
         }
     }
@@ -555,6 +576,34 @@ function callFindUrlsAndModels(testType) {
     }
 
     function isBetterPhotoImage(imageUrl) {
-        return imageUrl.includes('better-photo.jpg') || imageUrl.includes('spinner.gif');
+        return imageUrl.includes('better-photo.jpg');
     }
+
+    findUrlsAndModels(testType);
+}
+
+function addCleanupButton() {
+    const button = document.createElement('button');
+    button.id = 'cleanup-highlights-button';
+    button.textContent = 'Clear Highlights';
+    button.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        padding: 10px 20px;
+        background: #ff4444;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    `;
+    button.addEventListener('click', () => {
+        cleanupStyles();
+        button.remove();
+    });
+    document.body.appendChild(button);
 }

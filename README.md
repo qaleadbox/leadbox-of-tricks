@@ -140,6 +140,7 @@ root/
 
 ## Version History
 
+- v2.1: Loading feedback to extension icon and popup
 - v2.0: Input the OCR key by popup field
 - v1.9: Added OCR key management
 - v1.8: Improved CSV data matching
@@ -154,10 +155,10 @@ root/
 
 # Known Issues
 
-* When a feature is already processing and another is started, the current process ends unexpectedly;
 * The scroll does not follow the currently processing card;
     * Additionally, on paginated sites, the processing queue functions correctly, but the next page loads too early, making it difficult to locate the currently processing card.
 * If OCR API was down, any timeout is being thrown;
+* scrollDownUntilLoadAllVehicles from match csv data seems misupdated
 
 # Suggestions
 
