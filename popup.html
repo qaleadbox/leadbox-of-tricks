@@ -256,6 +256,16 @@
     .features-list:hover {
       display: block;
     }
+
+    #csvInput {
+      display: none;
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      position: relative;
+      z-index: 1001;
+      color: black;
+    }
   </style>
 </head>
 
@@ -287,7 +297,7 @@
           <div class="feature-description">Scan and identify coming soon images in the current page.</div>
         </li>
         <li>
-          <div class="feature-title">CSV Data Matcher <span class="coming-soon">Coming Soon</span></div>
+          <div class="feature-title">CSV Data Matcher</div>
           <div class="feature-description">Match CSV data with SRP cards information.</div>
         </li>
       </ul>
@@ -313,7 +323,16 @@
   <button id="check missing images">Check missing images</button>
   <script type="module" src="check missing images.js"></script>
 
-  <button id="match csv data with SRP cards information" disabled>Match csv data with SRP cards information</button>
+  <button id="match csv data with SRP cards information">Validate SRP Cards with CSV Data</button>
+  <div id="csvInput">
+    <div class="steps-label">
+Steps:
+1. Copy your CSV data
+<span class="bold">2. Paste here:</span>
+    </div>
+    <textarea id="csvData" placeholder="Paste your CSV data here..."></textarea>
+    <button id="processCSV">Process CSV Data</button>
+  </div>
   <script type="module" src="match csv data with SRP cards information.js"></script>
 
   <button id="HREF extraction to spreadsheet">HREF extraction to spreadsheet</button>
