@@ -15,14 +15,60 @@ function cleanupStyles() {
 }
 
 document.getElementById('check missing images').addEventListener('click', async (event) => {
-    const testType = event.target.textContent.trim().toLowerCase().replace(/\s+/g, '-');
+    const ocrInput = document.getElementById('ocrInput');
+    const ocrKeyTextarea = document.getElementById('ocrKey');
+    const saveOcrKeyButton = document.getElementById('saveOcrKey');
+
+    // Check if we're on a page that uses OCR
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const isOcrRequired = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+            return document.querySelector('div.lbx-paginator') !== null;
+        }
+    });
+
+    if (isOcrRequired[0].result) {
+        // Check if OCR key exists in storage
+        const storageResult = await chrome.storage.local.get(['ocrKey']);
+        if (!storageResult.ocrKey) {
+            // Show OCR key input if no key is found
+            ocrInput.style.display = 'block';
+            return;
+        }
+    }
+
+    // If OCR key exists or not required, proceed with the check
+    const testType = event.target.textContent.trim().toLowerCase().replace(/\s+/g, '-');
     cleanupStyles();
     chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: callFindUrlsAndModels,
         args: [testType]
     });
+});
+
+// Handle OCR key saving
+document.getElementById('saveOcrKey').addEventListener('click', async () => {
+    const ocrKeyTextarea = document.getElementById('ocrKey');
+    const ocrInput = document.getElementById('ocrInput');
+    const ocrKey = ocrKeyTextarea.value.trim();
+
+    if (ocrKey) {
+        await chrome.storage.local.set({ ocrKey });
+        ocrInput.style.display = 'none';
+        // Trigger the check missing images functionality after saving the key
+        document.getElementById('check missing images').click();
+    } else {
+        alert('Please enter a valid OCR key');
+    }
+});
+
+// Load saved OCR key if it exists
+chrome.storage.local.get(['ocrKey'], (result) => {
+    if (result.ocrKey) {
+        document.getElementById('ocrKey').value = result.ocrKey;
+    }
 });
 
 function callFindUrlsAndModels(testType) {

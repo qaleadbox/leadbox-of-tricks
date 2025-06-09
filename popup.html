@@ -79,6 +79,13 @@
       box-shadow: none;
     }
 
+    .availability-text {
+      color: #ff4444;
+      font-size: 0.9em;
+      font-weight: normal;
+      text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+    }
+
     #hrefInput {
       display: none;
       background: white;
@@ -113,12 +120,12 @@
 
     /* Updated features button styles */
     .features-button {
-      width: 24px !important;
-      height: 24px;
+      width: 32px !important;
+      height: 32px;
       border-radius: 50%;
-      font-size: 16px;
+      font-size: 12px;
       padding: 0;
-      line-height: 24px;
+      line-height: 32px;
       text-align: center;
       background: linear-gradient(to bottom, #4CAF50, #45a049);
       color: white;
@@ -141,7 +148,7 @@
     .features-list {
       display: none;
       position: fixed;
-      bottom: 40px;
+      bottom: 45px;
       right: 10px;
       width: 300px;
       max-height: calc(100vh - 100px);
@@ -152,6 +159,18 @@
       z-index: 1002;
       overflow-y: auto;
       overflow-x: hidden;
+      transition: opacity 0.2s ease;
+      opacity: 0;
+    }
+
+    .features-list.visible {
+      opacity: 1;
+    }
+
+    .features-button:hover + .features-list,
+    .features-list:hover {
+      display: block;
+      opacity: 1;
     }
 
     .features-list::-webkit-scrollbar {
@@ -173,9 +192,9 @@
     }
 
     .features-list h2 {
-      color: #333;
+      color: #4CAF50;
       margin: 0 0 10px 0;
-      font-size: 16px;
+      font-size: 18px;
       border-bottom: 1px solid #eee;
       padding-bottom: 5px;
     }
@@ -216,7 +235,7 @@
     }
 
     .feature-title {
-      color: #333;
+      color: #45a049;
       font-weight: bold;
       margin-bottom: 5px;
       display: flex;
@@ -252,9 +271,34 @@
       position: relative;
     }
 
-    .features-button:hover + .features-list,
-    .features-list:hover {
-      display: block;
+    .docs-button {
+      width: 32px !important;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 16px;
+      padding: 0;
+      line-height: 32px;
+      text-align: center;
+      background: linear-gradient(to bottom, #ff4444, #cc0000);
+      color: white;
+      text-shadow: none;
+      cursor: pointer;
+      border: none;
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      z-index: 1003;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      text-decoration: none;
+      font-family: "Tahoma", "Segoe UI", sans-serif;
+      font-weight: bold;
+      font-style: italic;
+    }
+
+    .docs-button:hover {
+      background: linear-gradient(to bottom, #cc0000, #ff4444);
+      transform: scale(1.1);
+      transition: transform 0.2s ease;
     }
 
     #csvInput {
@@ -265,6 +309,91 @@
       position: relative;
       z-index: 1001;
       color: black;
+    }
+
+    .docs-popup {
+      display: none;
+      position: fixed;
+      bottom: 45px;
+      left: 10px;
+      width: 300px;
+      max-height: calc(100vh - 100px);
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      z-index: 1002;
+      overflow-y: auto;
+      overflow-x: hidden;
+      color: #333;
+      transition: opacity 0.2s ease;
+      opacity: 0;
+    }
+
+    .docs-popup.visible {
+      opacity: 1;
+    }
+
+    .docs-popup::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .docs-popup::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    .docs-popup::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+
+    .docs-popup::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+
+    .docs-popup h2 {
+      color: #ff4444;
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 5px;
+    }
+
+    .docs-popup .topic {
+      display: block;
+      text-decoration: none;
+      margin: 8px 0;
+      padding: 8px;
+      border-radius: 4px;
+      background: #f5f5f5;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .docs-popup .topic:hover {
+      background: #e0e0e0;
+    }
+
+    .docs-popup .topic:active {
+      background: #d0d0d0;
+    }
+
+    .docs-popup .topic-title {
+      font-weight: bold;
+      color: #cc0000;
+    }
+
+    .docs-popup .topic-description {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .docs-button:hover + .docs-popup,
+    .docs-popup:hover {
+      display: block;
+      opacity: 1;
     }
   </style>
 </head>
@@ -320,10 +449,24 @@
     </div>
   </div>
 
-  <button id="check missing images">Check missing images</button>
+  <button id="check missing images">Find coming soon images <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
+  <div id="ocrInput" style="display: none; background: white; padding: 10px; border-radius: 4px; position: relative; z-index: 1001; color: black;">
+    <div style="background-color: #ff4444; color: white; padding: 10px; border-radius: 4px; margin-bottom: 10px; font-weight: bold; text-align: center; font-size: 16px; text-transform: uppercase;">
+      Image checks for this site are only possible through the API
+    </div>
+    <div class="steps-label">
+Steps:
+1. Get your OCR API key:
+   - Contact the extension developers, or
+   - Get a free key at <a href="https://ocr.space/ocrapi/freekey" target="_blank">https://ocr.space/ocrapi/freekey</a>
+<span class="bold">2. Enter your OCR key here:</span>
+    </div>
+    <textarea id="ocrKey" placeholder="Enter your OCR API key here..." style="height: 30px; min-height: 30px; max-height: 30px; resize: none;"></textarea>
+    <button id="saveOcrKey">Save OCR Key</button>
+  </div>
   <script type="module" src="check missing images.js"></script>
 
-  <button id="match csv data with SRP cards information">Validate SRP Cards with CSV Data</button>
+  <button id="match csv data with SRP cards information">Validate SRP Cards with CSV Data <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
   <div id="csvInput">
     <div class="steps-label">
 Steps:
@@ -335,7 +478,7 @@ Steps:
   </div>
   <script type="module" src="match csv data with SRP cards information.js"></script>
 
-  <button id="HREF extraction to spreadsheet">HREF extraction to spreadsheet</button>
+  <button id="HREF extraction to spreadsheet">HREF extraction to spreadsheet <span class="availability-text">(AVAILABLE ON SITEMAPs)</span></button>
   <div class="modal-overlay" id="modalOverlay"></div>
   <div id="hrefInput">
     <div class="steps-label">
@@ -352,8 +495,124 @@ Steps:
 &lt;/ul&gt;"></textarea>
     <button id="processHrefs">Extract the links</button>
   </div>
+
   <script type="module" src="HREF extraction to spreadsheet.js"></script>
   <script type="module" src="version.js"></script>
+
+  <button class="docs-button" title="View Documentation">i</button>
+  <div class="docs-popup">
+    <h2>Documentation</h2>
+    
+    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#how-to-install" target="_blank" class="topic">
+      <div class="topic-title">How to install</div>
+      <div class="topic-description">Installation guide for Google Chrome</div>
+    </a>
+
+    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#how-to-use" target="_blank" class="topic">
+      <div class="topic-title">How to use</div>
+      <div class="topic-description">Feature guides and usage instructions</div>
+    </a>
+
+    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#structure" target="_blank" class="topic">
+      <div class="topic-title">Structure</div>
+      <div class="topic-description">Project folder structure and file descriptions</div>
+    </a>
+
+    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#development-status" target="_blank" class="topic">
+      <div class="topic-title">Development Status</div>
+      <div class="topic-description">Current progress and pending items</div>
+    </a>
+
+    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#known-issues" target="_blank" class="topic">
+      <div class="topic-title">Known Issues</div>
+      <div class="topic-description">Current limitations and bugs</div>
+    </a>
+
+    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#goal" target="_blank" class="topic">
+      <div class="topic-title">Goal</div>
+      <div class="topic-description">Project objectives and future plans</div>
+    </a>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Documentation popup behavior
+      const docsButton = document.querySelector('.docs-button');
+      const docsPopup = document.querySelector('.docs-popup');
+      let docsHideTimeout;
+
+      docsButton.addEventListener('mouseenter', function() {
+        clearTimeout(docsHideTimeout);
+        docsPopup.style.display = 'block';
+        setTimeout(() => docsPopup.classList.add('visible'), 10);
+      });
+
+      docsButton.addEventListener('mouseleave', function() {
+        docsHideTimeout = setTimeout(() => {
+          docsPopup.classList.remove('visible');
+          setTimeout(() => {
+            if (!docsPopup.matches(':hover')) {
+              docsPopup.style.display = 'none';
+            }
+          }, 200);
+        }, 100);
+      });
+
+      docsPopup.addEventListener('mouseenter', function() {
+        clearTimeout(docsHideTimeout);
+        docsPopup.classList.add('visible');
+      });
+
+      docsPopup.addEventListener('mouseleave', function() {
+        docsHideTimeout = setTimeout(() => {
+          docsPopup.classList.remove('visible');
+          setTimeout(() => {
+            if (!docsButton.matches(':hover')) {
+              docsPopup.style.display = 'none';
+            }
+          }, 200);
+        }, 100);
+      });
+
+      // Features popup behavior
+      const featuresButton = document.querySelector('.features-button');
+      const featuresList = document.querySelector('.features-list');
+      let featuresHideTimeout;
+
+      featuresButton.addEventListener('mouseenter', function() {
+        clearTimeout(featuresHideTimeout);
+        featuresList.style.display = 'block';
+        setTimeout(() => featuresList.classList.add('visible'), 10);
+      });
+
+      featuresButton.addEventListener('mouseleave', function() {
+        featuresHideTimeout = setTimeout(() => {
+          featuresList.classList.remove('visible');
+          setTimeout(() => {
+            if (!featuresList.matches(':hover')) {
+              featuresList.style.display = 'none';
+            }
+          }, 200);
+        }, 100);
+      });
+
+      featuresList.addEventListener('mouseenter', function() {
+        clearTimeout(featuresHideTimeout);
+        featuresList.classList.add('visible');
+      });
+
+      featuresList.addEventListener('mouseleave', function() {
+        featuresHideTimeout = setTimeout(() => {
+          featuresList.classList.remove('visible');
+          setTimeout(() => {
+            if (!featuresButton.matches(':hover')) {
+              featuresList.style.display = 'none';
+            }
+          }, 200);
+        }, 100);
+      });
+    });
+  </script>
 
 </body>
 

@@ -1,12 +1,13 @@
-import { OCR_API_KEY } from '../config.js';
+// Remove the import since we're not using config.js anymore
+// import { OCR_API_KEY } from '../config.js';
 
 let comingSoonImageSizes = new Set();
 
 function loadFromStorage() {
     if (chrome?.storage?.local) {
-        chrome.storage.local.get(['comingSoonImageSizes'], (result) => {
-            if (result?.comingSoonImageSizes) {
-                result.comingSoonImageSizes.forEach(size => comingSoonImageSizes.add(size));
+        chrome.storage.local.get(['comingSoonImageSizes', 'ocrKey'], (storageResult) => {
+            if (storageResult?.comingSoonImageSizes) {
+                storageResult.comingSoonImageSizes.forEach(size => comingSoonImageSizes.add(size));
                 console.log('Loaded cached image sizes:', comingSoonImageSizes.size);
             }
         });
@@ -40,6 +41,14 @@ async function getImageFileSize(url) {
 
 export async function checkImageWithOCR(imageUrl) {
     try {
+        // Get OCR key from storage
+        const storageResult = await chrome.storage.local.get(['ocrKey']);
+        const ocrKey = storageResult.ocrKey;
+
+        if (!ocrKey) {
+            throw new Error('OCR API key not found. Please configure it in the extension popup.');
+        }
+
         const imageSize = await getImageFileSize(imageUrl);
         if (comingSoonImageSizes.has(imageSize)) {
             console.log('Found cached coming soon image size, skipping API call');
@@ -47,7 +56,7 @@ export async function checkImageWithOCR(imageUrl) {
         }
 
         const params = new URLSearchParams({
-            apikey: OCR_API_KEY,
+            apikey: ocrKey,
             url: imageUrl,
             language: 'eng'
         });
@@ -57,8 +66,8 @@ export async function checkImageWithOCR(imageUrl) {
         if (!response.ok) {
             throw new Error(`OCR API error: ${response.status} - ${response.statusText}`);
         }
-        const result = await response.json();
-        const text = result?.ParsedResults?.[0]?.ParsedText?.toLowerCase() || '';
+        const ocrResult = await response.json();
+        const text = ocrResult?.ParsedResults?.[0]?.ParsedText?.toLowerCase() || '';
         const isComingSoon = text.includes('coming soon');
 
         if (isComingSoon) {
