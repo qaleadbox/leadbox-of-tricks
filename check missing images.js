@@ -25,13 +25,6 @@ document.getElementById('check missing images').addEventListener('click', async 
     });
 });
 
-document.getElementById('viewStorageData').addEventListener('click', async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const extensionId = chrome.runtime.id;
-    const storageUrl = `chrome://extensions/?id=${extensionId}`;
-    chrome.tabs.create({ url: storageUrl });
-});
-
 function callFindUrlsAndModels(testType) {
     let scannedVehicles = 0;
     let result = [];
