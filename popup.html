@@ -309,6 +309,8 @@
       position: relative;
       z-index: 1001;
       color: black;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .docs-popup {
@@ -395,6 +397,55 @@
       display: block;
       opacity: 1;
     }
+
+    .class-names-toggle {
+      margin: 10px 0;
+      text-align: right;
+    }
+    
+    .class-names-toggle a {
+      color: #ff4444;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    
+    .class-names-toggle a:hover {
+      text-decoration: underline;
+    }
+
+    .field-mappings {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .field-mapping {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .field-mapping label {
+      flex: 0 0 120px;
+      color: #333;
+      font-weight: bold;
+    }
+
+    .field-mapping input {
+      flex: 1;
+      margin-left: 10px;
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    .required-asterisk {
+      color: #ff4444;
+      font-weight: bold;
+    }
   </style>
 </head>
 
@@ -467,14 +518,15 @@ Steps:
   <script type="module" src="check missing images.js"></script>
 
   <button id="match csv data with SRP cards information">Validate SRP Cards with CSV Data <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
-  <div id="csvInput">
-    <div class="steps-label">
-Steps:
-1. Copy your CSV data
-<span class="bold">2. Paste here:</span>
+  <div id="csvInput" style="display: none;">
+    <div class="class-names-toggle">
+      <a href="#" id="toggleClassNames">Edit Vehicle Card Class Names (Optional)</a>
     </div>
-    <textarea id="csvData" placeholder="Paste your CSV data here..."></textarea>
-    <button id="processCSV">Process CSV Data</button>
+    <div class="field-mappings" style="display: none;">
+    </div>
+    <h3>CSV Data <span class="required-asterisk">*</span></h3>
+    <textarea id="csvData" placeholder="Paste CSV data here..."></textarea>
+    <button id="processCSV">Process CSV</button>
   </div>
   <script type="module" src="match csv data with SRP cards information.js"></script>
 
