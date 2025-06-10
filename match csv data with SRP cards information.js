@@ -44,7 +44,7 @@ function callFindUrlsAndModels(testType, csvData) {
 
     async function findUrlsAndModels(testType, csvData) {
         try {
-            scannedVehicles = await scrollDownUntilLoadAllVehicles(scannedVehicles, result, csvData);
+            scannedVehicles = await scrollDownUntilLoadAllVehicles(result, csvData);
 
             const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
             console.log(message);
@@ -66,51 +66,55 @@ function callFindUrlsAndModels(testType, csvData) {
         }
     }
 
-    async function scrollDownUntilLoadAllVehicles(scannedVehicles, result, csvData) {
-        let actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-        let lastElementsLoaded = 0;
+    async function scrollDownUntilLoadAllVehicles(result, csvData) {
+        let actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
         let totalElementsLoaded = 0;
+        let isMoreVehicleAvailable = true;
 
-        while (actualElementsLoaded !== lastElementsLoaded) {
-            lastElementsLoaded = actualElementsLoaded;
+        while (isMoreVehicleAvailable) {
+            const PAGINATION_SCROLL_TYPE = isPaginationScrollType();
+            const VIEW_MORE_VEHICLES_SCROLL_TYPE = isViewMoreScrollType();
+
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-            
-            const viewMoreButton = document.querySelector('button.lbx-load-more-btn');
-            const paginationRightArrow = document.querySelector('.right-arrow');
-            if (viewMoreButton) {
-                console.warn('Clicking "View More Vehicles" button...');
-                viewMoreButton.click();
-            }
-            else if (paginationRightArrow){
-                lastElementsLoaded = -1;
-                console.warn('Clicking pagination right arrow...');
-                paginationRightArrow.click();
-            }
 
+            actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            actualElementsLoaded = document.querySelectorAll('.vehicle-car__section').length;
-                
-            const windowLocationHostname = window.location.hostname;
-
-            switch (windowLocationHostname){            
-                case "landrovertoronto.ca":
-                case "jaguartoronto.com":
-                case "countychevroletessex.com":
+            if (PAGINATION_SCROLL_TYPE) {
+                totalElementsLoaded += actualElementsLoaded;
+                if (isThereANextPage()) {
+                    getPaginationArrow().click();
+                    console.warn('Clicking pagination next page arrow...');
+                }
+                else {
+                    isMoreVehicleAvailable = false;
+                }
+            }
+            else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
+                totalElementsLoaded = actualElementsLoaded;
+                if (isViewMoreButtonVisible()) {
+                    getViewMoreButton().click();
+                    console.warn('Clicking "View More Vehicles" button...');
+                }
+                else {
+                    isMoreVehicleAvailable = false;
+                }
+            }
+            else {
+                if (actualElementsLoaded != totalElementsLoaded) {
+                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                    console.warn('Scrolling to see more vehicles...');
                     totalElementsLoaded = actualElementsLoaded;
-                    break;
-
-                case "www.bridgesgm.com":
-                case "mcnaughtbuickgmc.kinsta.cloud":
-                case "nursechevrolet.kinsta.cloud":
-                    totalElementsLoaded += actualElementsLoaded;
-                    break;
-            }            
-            console.warn(`${totalElementsLoaded} elements loaded.`);
-            scannedVehicles = await readVehiclesAndAddResults(result, csvData);           
+                }
+                else {
+                    isMoreVehicleAvailable = false;
+                }
+            }
+            console.warn(`${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
+            await readVehiclesAndAddResults(result, csvData);
         }
         console.warn("Finished scrolling, all vehicles loaded.");
-        return scannedVehicles;
+        return totalElementsLoaded;
     }
 
     async function readVehiclesAndAddResults(result, csvData) {
@@ -284,5 +288,27 @@ function callFindUrlsAndModels(testType, csvData) {
             }
         }
         return stockDataMap;
+    }
+
+    function isPaginationScrollType() {
+        return document.querySelector('div.lbx-paginator') !== null;
+    }
+    function getPaginationArrow() {
+        return document.querySelector('.right-arrow');
+    }
+    function isThereANextPage() {
+        const rightArrow = getPaginationArrow();
+        return rightArrow && rightArrow.offsetParent !== null;
+    }
+
+    function isViewMoreScrollType() {
+        return document.querySelector('button.lbx-load-more-btn') !== null;
+    }
+    function getViewMoreButton() {
+        return document.querySelector('button.lbx-load-more-btn');
+    }
+    function isViewMoreButtonVisible() {
+        const btn = document.querySelector('button.lbx-load-more-btn');
+        return btn && btn.offsetParent !== null;
     }
 }
