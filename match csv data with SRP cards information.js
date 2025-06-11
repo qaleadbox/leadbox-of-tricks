@@ -1,3 +1,5 @@
+import { saveFieldMapValues, getFieldMapValues } from './field-map-storage.js';
+
 const FIELD_MAP = {
     STOCK_NUMBER:               { srp: ".stock_number",                     csv: "StockNumber" },
     DEALER_ID:                  { srp: "",                                  csv: "Dealer Id" },
@@ -35,6 +37,33 @@ const FIELD_MAP = {
     IS_JUMPSTART:               { srp: "",                                  csv: "IsJumpstart" }
 };
 
+async function getCurrentFieldMap() {
+    const customFieldMap = {};
+    for (const [key, value] of Object.entries(FIELD_MAP)) {
+        const inputField = document.getElementById(`${key.toLowerCase()}Mapping`);
+        if (inputField && inputField.value.trim()) {
+            customFieldMap[key] = inputField.value.trim();
+        }
+    }
+    return customFieldMap;
+}
+
+async function refreshFieldMapInputs() {
+    const savedFieldMap = await getFieldMapValues();
+    if (savedFieldMap) {
+        for (const [key, value] of Object.entries(savedFieldMap)) {
+            const inputField = document.getElementById(`${key.toLowerCase()}Mapping`);
+            if (inputField) {
+                inputField.value = value;
+            }
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await refreshFieldMapInputs();
+});
+
 document.getElementById('match csv data with SRP cards information').addEventListener('click', async (event) => {
     const csvInput = document.getElementById('csvInput');
     const hrefInput = document.getElementById('hrefInput');
@@ -59,13 +88,19 @@ document.getElementById('match csv data with SRP cards information').addEventLis
             const input = document.createElement('input');
             input.type = 'text';
             input.id = `${key.toLowerCase()}Mapping`;
-            
             input.placeholder = `Current value is '${value.srp}'`;
+            
+            input.addEventListener('change', async () => {
+                const customFieldMap = await getCurrentFieldMap();
+                await saveFieldMapValues(customFieldMap);
+            });
             
             fieldMapping.appendChild(label);
             fieldMapping.appendChild(input);
             fieldMappingsContainer.appendChild(fieldMapping);
         }
+
+        await refreshFieldMapInputs();
     }
 });
 
@@ -90,14 +125,7 @@ document.getElementById('processCSV').addEventListener('click', async () => {
         return;
     }
 
-    const customFieldMap = {};
-    for (const [key, value] of Object.entries(FIELD_MAP)) {
-        const inputField = document.getElementById(`${key.toLowerCase()}Mapping`);
-        if (inputField && inputField.value.trim()) {
-            customFieldMap[key] = inputField.value.trim();
-        }
-    }
-
+    const customFieldMap = await getCurrentFieldMap();
     const testType = 'match-csv-data-with-srp-cards-information';
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     chrome.scripting.executeScript({
@@ -222,6 +250,7 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
                         
                     const csvNormalizedValue = normalizeValue(map_key, csvRaw);
                     const srpNormalizedValue = normalizeValue(map_key, srpRaw);
+                    // console.log(csvKey+": "+srpSelector+": "+srpNormalizedValue);
 
                     if (await isExceptionValue(map_key, csvNormalizedValue, srpNormalizedValue)) {
                         continue;
