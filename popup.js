@@ -174,4 +174,40 @@ featuresList.addEventListener('mouseleave', function() {
             }
         }, 200);
     }, 100);
+});
+
+import { exportFieldMapsToJson, importFieldMapsFromJson } from './field-map-storage.js';
+
+document.getElementById('exportButton').addEventListener('click', async () => {
+    try {
+        toggleLoading(true);
+        await exportFieldMapsToJson();
+    } catch (error) {
+        console.error('Error exporting field maps:', error);
+        alert('Error exporting field maps. Please try again.');
+    } finally {
+        toggleLoading(false);
+    }
+});
+
+document.getElementById('importFile').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+        toggleLoading(true);
+        const success = await importFieldMapsFromJson(file);
+        if (success) {
+            alert('Field maps imported successfully!');
+            window.location.reload();
+        } else {
+            alert('Error importing field maps. Please check the file format and try again.');
+        }
+    } catch (error) {
+        console.error('Error importing field maps:', error);
+        alert('Error importing field maps. Please try again.');
+    } finally {
+        toggleLoading(false);
+        event.target.value = '';
+    }
 }); 

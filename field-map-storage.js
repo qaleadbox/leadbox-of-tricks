@@ -61,7 +61,7 @@ async function getAllFieldMaps() {
         const fieldMaps = {};
         
         for (const [key, value] of Object.entries(result)) {
-            if (key.startsWith('@')) {
+            if (typeof value === 'object' && value !== null) {
                 fieldMaps[key] = value;
             }
         }
@@ -84,10 +84,65 @@ async function deleteFieldMap(siteDescription) {
     }
 }
 
+async function exportFieldMapsToJson() {
+    try {
+        const fieldMaps = await getAllFieldMaps();
+        if (Object.keys(fieldMaps).length === 0) {
+            console.log('No field maps to export');
+            return false;
+        }
+        const jsonString = JSON.stringify(fieldMaps, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `LeadBox-of-Tricks-customized-data-${timestamp}.json`;
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        return true;
+    } catch (error) {
+        console.error('Error exporting field maps:', error);
+        return false;
+    }
+}
+
+async function importFieldMapsFromJson(jsonFile) {
+    try {
+        const text = await jsonFile.text();
+        const fieldMaps = JSON.parse(text);
+        
+        if (Object.keys(fieldMaps).length === 0) {
+            console.error('No field maps found in the imported file');
+            return false;
+        }
+        
+        for (const [key, value] of Object.entries(fieldMaps)) {
+            if (typeof value === 'object' && value !== null) {
+                await chrome.storage.local.set({ [key]: value });
+            }
+        }
+        
+        console.log('Field maps imported successfully');
+        return true;
+    } catch (error) {
+        console.error('Error importing field maps:', error);
+        return false;
+    }
+}
+
 export {
     saveFieldMapValues,
     getFieldMapValues,
     getAllFieldMaps,
     deleteFieldMap,
-    getSiteDescription
+    getSiteDescription,
+    exportFieldMapsToJson,
+    importFieldMapsFromJson
 }; 

@@ -140,6 +140,7 @@ root/
 
 ## Version History
 
+- v2.6: Importing/Exporting customized fields to a JSON file
 - v2.5: Added support for locally persist customized classes
 - v2.4: Added support for comparing vehicle card main image links between CSV and SRP.
 - v2.3: Added customized classes to vehicles cards CSS selector
