@@ -205,12 +205,6 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
         const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
         const csvMap = await csvParser(csvData);
     
-        const mismatcheExceptions = [
-            { srp: [""], csv: ["SKIP"] },
-            { srp: ["–"], csv: ["0"] },
-            { srp: ["contactus"],  csv: [""] }
-        ];
-    
         for (const srpVehicle of allVehicleCards) {
             const stockSelector = customFieldMap.STOCK_NUMBER || fieldMap.STOCK_NUMBER.srp;
             const srpStockNumber = await getTextFromVehicleCard(srpVehicle, stockSelector);
@@ -221,46 +215,35 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
                     const srpSelector = customFieldMap[map_key] || map.srp;
                     const csvKey = map.csv;
 
-                    if (!srpSelector || !csvKey) continue;
+                    if (!csvKey || !srpSelector) continue;
     
                     const srpRaw = await getTextFromVehicleCard(srpVehicle, srpSelector);
-                    console.log("-----------------");
-                    console.log(csvKey+": "+srpSelector+": "+srpRaw);
                     const csvRaw = csvVehicle[csvKey];
-    
-                    const srpValue = normalizeValue(srpRaw, map_key);
-                    const csvValue = normalizeValue(csvRaw, map_key);
-    
-                    const matched = srpValue === csvValue;                  
-    
-                    let shouldSkip = false;
+                        
+                    const csvNormalizedValue = normalizeValue(map_key, csvRaw);
+                    const srpNormalizedValue = normalizeValue(map_key, srpRaw);
 
-                    for (const exception of mismatcheExceptions) {
-                        if (
-                            exception.srp.includes(srpValue) &&
-                            (exception.csv.includes(csvValue) || exception.csv.includes("SKIP"))
-                        ) {
-                            shouldSkip = true;
-                            break;
-                        }
+                    if (await isExceptionValue(map_key, csvNormalizedValue, srpNormalizedValue)) {
+                        continue;
                     }
-
-                    if (shouldSkip) continue;
+    
+                    let matched = srpNormalizedValue === csvNormalizedValue;  
                     
                     if (!matched) {
-                        if (!result[srpStockNumber]) {
+                        let isNotOnResultsYet = !result[srpStockNumber];
+                        
+                        if (isNotOnResultsYet) {
                             result[srpStockNumber] = { mismatches: {} };
                         }
                     
                         result[srpStockNumber].mismatches[map_key] = {
-                            srp: srpRaw,
-                            csv: csvRaw
+                            csv: csvNormalizedValue,
+                            srp: srpNormalizedValue
                         };
                     }
                 }
             }
-        }
-    
+        }    
         return allVehicleCards.length;
     }
 
@@ -271,13 +254,13 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
         }
     
         const filename = `${window.location.hostname.replace('www.', '')}_${testType.toUpperCase()}_${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.csv`;
-        const lines = ['StockNumber,Field,SRP,CSV'];
+        const lines = ['StockNumber,Field,CSV,SRP'];
     
         for (const stockNumber in data) {
             const mismatches = data[stockNumber].mismatches;
             for (const field in mismatches) {
                 const { srp, csv } = mismatches[field];
-                lines.push(`"${stockNumber}","${field}","${srp}","${csv}"`);
+                lines.push(`"${stockNumber}","${field}","${csv}","${srp}"`);
             }
         }
     
@@ -288,19 +271,50 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
         link.click();
     }
 
-    function normalizeValue(value, field) {
-        if (!value) return '';
+    async function isExceptionValue(csv_key, csv_value, srp_value) {
+        if (!srp_value && !csv_value) return true;        
     
-        let normalized = value.toString().toLowerCase().trim();
-    
-        normalized = normalized.replace(/[,$\s]|km|\.00000/g, '');
-    
-        if (['KILOMETERS', 'PRICE'].includes(field)) {
-            const asInt = parseInt(normalized);
-            return isNaN(asInt) ? normalized : asInt.toString();
+        let mismatcheExceptions = [
+            { srp: [""], csv: ["SKIP"] },
+            { srp: ["–"], csv: ["0"] },
+            { srp: ["contactus"],  csv: [""] }
+        ];
+
+        for (const exception of mismatcheExceptions) {
+            if (
+                exception.srp.includes(srp_value) &&
+                (exception.csv.includes(csv_value) || exception.csv.includes("SKIP"))
+            ) {
+                return true;
+            }
         }
+
+        switch (csv_key) {
+            case 'PHOTOS':
+                const isSpinner = srp_value.includes('spinner.gif');
+                return isSpinner;
+            default:
+                return false;
+        }
+    }
+
+    function normalizeValue(key, value) {
+        if (!value) return '';
+
+        let normalized = value.toString().trim();
     
-        return normalized;
+        switch (key){
+            case 'CONDITION':
+                return normalized.toLowerCase();
+            case 'PRICE':
+                normalized = normalized.toLowerCase();
+                return normalized.replace(/[$,]/g, '');
+            case 'KILOMETERS':
+                normalized = normalized.toLowerCase();
+                return normalized.replace(/[km\s]|\.00000/g, '');
+            default:
+                return normalized;
+        }
     }
 
     async function getTextFromVehicleCard(vehicleCard, selector) {
