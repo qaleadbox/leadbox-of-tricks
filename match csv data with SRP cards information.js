@@ -6,7 +6,7 @@ const FIELD_MAP = {
     YEAR:                       { srp: ".value__year",                      csv: "Year" },
     MAKE:                       { srp: ".value__make",                      csv: "Make" },
     MODEL:                      { srp: ".value__model",                     csv: "Model" },
-    PHOTOS:                     { srp: "",                                  csv: "Photos" },
+    PHOTOS:                     { srp: ".main-img",                         csv: "Photos" },
     PHOTO_UPDATE:               { srp: "",                                  csv: "PhotoUpdate" },
     ADDITIONAL_PHOTOS:          { srp: "",                                  csv: "AdditionalPhotos" },
     ADDITIONAL_PHOTOS_UPDATE:   { srp: "",                                  csv: "AdditionalPhotosUpdate" },
@@ -213,6 +213,7 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
             const stockSelector = customFieldMap.STOCK_NUMBER || fieldMap.STOCK_NUMBER.srp;
             const srpStockNumber = await getTextFromVehicleCard(srpVehicle, stockSelector);
             const csvVehicle = csvMap[srpStockNumber];
+            console.log("-----------------");
     
             if (srpStockNumber && csvVehicle && typeof csvVehicle === 'object') {
                 for (const [map_key, map] of Object.entries(fieldMap)) {
@@ -222,6 +223,7 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
                     if (!srpSelector || !csvKey) continue;
     
                     const srpRaw = await getTextFromVehicleCard(srpVehicle, srpSelector);
+                    console.log(csvKey+": "+srpSelector+": "+srpRaw);
                     const csvRaw = csvVehicle[csvKey];
     
                     const srpValue = normalizeValue(srpRaw, map_key);
@@ -299,21 +301,34 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
         return normalized;
     }
 
-    async function getTextFromVehicleCard(vehicleCardElement, selector) {
+    async function getTextFromVehicleCard(vehicleCard, selector) {
         try {
-            if(vehicleCardElement) {
-                vehicleCard = vehicleCardElement.querySelector(selector);
-                if (!vehicleCard) return "";
-                let text = vehicleCard.textContent.trim();
-                if (text.includes("Stock#:")) {
-                    text = text.replace("Stock#:", "").trim();
-                }
-                return text;
+            if (!vehicleCard) return "";
+            
+            const vehicleCardElement = vehicleCard.querySelector(selector);
+            if (!vehicleCardElement) return "";
+            
+            switch (vehicleCardElement.tagName) {
+                case "IMG":
+                    return handleImageElement(vehicleCardElement);
+                default:
+                    return handleTextElement(vehicleCardElement);
             }
         } catch (error) {
             console.error("An error occurred while getting the text:", error);
             return "";
         }
+    }
+
+    function handleImageElement(imgElement) {
+        const imgSrc = imgElement.src || "";
+        const imgSrcCardByThirdpartyReplacement = imgSrc.replace("-card.", "-THIRDPARTY.");
+        return imgSrcCardByThirdpartyReplacement || "";
+    }
+
+    function handleTextElement(element) {
+        let textSurroundingSpacesTrimmed = element.textContent.trim();
+        return textSurroundingSpacesTrimmed.includes("Stock#:") ? textSurroundingSpacesTrimmed.replace("Stock#:", "").trim() : textSurroundingSpacesTrimmed;
     }
     
     async function csvParser(csvVehicle) {

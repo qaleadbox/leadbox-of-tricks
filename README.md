@@ -140,6 +140,9 @@ root/
 
 ## Version History
 
+- v2.4: Added support for comparing vehicle card main image links between CSV and SRP.
+- v2.3: Added customized classes to vehicles cards CSS selector
+- v2.2: Hofix Check CSV-SRP module pages scrolling
 - v2.1: Loading feedback to extension icon and popup
 - v2.0: Input the OCR key by popup field
 - v1.9: Added OCR key management
@@ -158,11 +161,11 @@ root/
 * The scroll does not follow the currently processing card;
     * Additionally, on paginated sites, the processing queue functions correctly, but the next page loads too early, making it difficult to locate the currently processing card.
 * If OCR API was down, any timeout is being thrown;
-* scrollDownUntilLoadAllVehicles from match csv data seems misupdated
 
 # Suggestions
 
-* The Leadbox icon should only be animated when the extension is actively processing something.
+* Processes should start when tap ENTER
+* When clicked outsite pop up, it closes and the data disappear
 
 # Goal
 
