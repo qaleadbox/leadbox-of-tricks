@@ -160,7 +160,7 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
             actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
             if (PAGINATION_SCROLL_TYPE) {
                 totalElementsLoaded += actualElementsLoaded;
@@ -185,6 +185,8 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
             else {
                 if (actualElementsLoaded != totalElementsLoaded) {
                     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
                     console.warn('Scrolling to see more vehicles...');
                     totalElementsLoaded = actualElementsLoaded;
                 }
@@ -213,7 +215,6 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
             const stockSelector = customFieldMap.STOCK_NUMBER || fieldMap.STOCK_NUMBER.srp;
             const srpStockNumber = await getTextFromVehicleCard(srpVehicle, stockSelector);
             const csvVehicle = csvMap[srpStockNumber];
-            console.log("-----------------");
     
             if (srpStockNumber && csvVehicle && typeof csvVehicle === 'object') {
                 for (const [map_key, map] of Object.entries(fieldMap)) {
@@ -223,6 +224,7 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
                     if (!srpSelector || !csvKey) continue;
     
                     const srpRaw = await getTextFromVehicleCard(srpVehicle, srpSelector);
+                    console.log("-----------------");
                     console.log(csvKey+": "+srpSelector+": "+srpRaw);
                     const csvRaw = csvVehicle[csvKey];
     

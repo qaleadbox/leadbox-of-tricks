@@ -166,6 +166,8 @@ root/
 
 * Processes should start when tap ENTER
 * When clicked outsite pop up, it closes and the data disappear
+* For check coming soon images, change the stockNumber column to the first on the output CSV file
+
 
 # Goal
 

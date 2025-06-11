@@ -79,6 +79,32 @@ function callFindUrlsAndModels(testType) {
     let globalStyleElement = null;
     let isProcessing = true;
 
+    function addCleanupButton() {
+        const button = document.createElement('button');
+        button.id = 'cleanup-highlights-button';
+        button.textContent = 'Clear Highlights';
+        button.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            padding: 10px 20px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        `;
+        button.addEventListener('click', () => {
+            cleanupStyles();
+            button.remove();
+        });
+        document.body.appendChild(button);
+    }
+
     try {
         chrome.runtime.sendMessage({ 
             type: 'startProcessing'
@@ -298,6 +324,8 @@ function callFindUrlsAndModels(testType) {
         const elements = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1');
 
         for (const element of elements) {
+            if (element.classList.contains('processed-card')) continue;
+
             const modelElement = element.querySelector('.value__model');
             const trimElement = element.querySelector('.value__trim');
             const stockNumberElement = element.querySelector('.stock_label') || element.querySelector('.stock_number') || element.querySelector('.value__stock');
@@ -350,8 +378,6 @@ function callFindUrlsAndModels(testType) {
                                 return false;
                             });
                         } else {
-                            const previousVehicleCount = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
-                            
                             await highlightCard(element, async () => {
                                 if (isBetterPhotoImage(imageUrl)) {
                                     const alreadyExists = result.some(item => item.stockNumber === stockNumber);
@@ -362,18 +388,6 @@ function callFindUrlsAndModels(testType) {
                                 }
                                 return false;
                             });
-
-                            const waitingCards = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1.waiting-card').length;
-                            if (waitingCards === 0) {
-                                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                                await new Promise(resolve => setTimeout(resolve, 200));
-                                const currentVehicleCount = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
-                                
-                                if (currentVehicleCount === previousVehicleCount) {
-                                    isMoreVehicleAvailable = false;
-                                    break;
-                                }
-                            }
                         }
                     } else {
                         console.log('Missing required data:', {
@@ -429,23 +443,24 @@ function callFindUrlsAndModels(testType) {
         let actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
         let totalElementsLoaded = 0;
         let isMoreVehicleAvailable = true;
+        let noNewVehiclesCount = 0;
 
         while (isMoreVehicleAvailable) {
             const PAGINATION_SCROLL_TYPE = isPaginationScrollType();
             const VIEW_MORE_VEHICLES_SCROLL_TYPE = isViewMoreScrollType();
 
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
             actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
-            await new Promise(resolve => setTimeout(resolve, 1000));
 
             if (PAGINATION_SCROLL_TYPE) {
                 totalElementsLoaded += actualElementsLoaded;
                 if (isThereANextPage()) {
                     getPaginationArrow().click();
                     console.warn('Clicking pagination next page arrow...');
-                }
-                else {
+                    noNewVehiclesCount = 0;
+                } else {
                     isMoreVehicleAvailable = false;
                 }
             }
@@ -454,19 +469,21 @@ function callFindUrlsAndModels(testType) {
                 if (isViewMoreButtonVisible()) {
                     getViewMoreButton().click();
                     console.warn('Clicking "View More Vehicles" button...');
-                }
-                else {
+                    noNewVehiclesCount = 0;
+                } else {
                     isMoreVehicleAvailable = false;
                 }
             }
             else {
-                if (actualElementsLoaded != totalElementsLoaded) {
-                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                if (actualElementsLoaded > totalElementsLoaded) {
                     console.warn('Scrolling to see more vehicles...');
                     totalElementsLoaded = actualElementsLoaded;
-                }
-                else {
-                    isMoreVehicleAvailable = false;
+                    noNewVehiclesCount = 0;
+                } else {
+                    noNewVehiclesCount++;
+                    if (noNewVehiclesCount >= 3) {
+                        isMoreVehicleAvailable = false;
+                    }
                 }
             }
             console.warn(`${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
@@ -580,30 +597,4 @@ function callFindUrlsAndModels(testType) {
     }
 
     findUrlsAndModels(testType);
-}
-
-function addCleanupButton() {
-    const button = document.createElement('button');
-    button.id = 'cleanup-highlights-button';
-    button.textContent = 'Clear Highlights';
-    button.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 9999;
-        padding: 10px 20px;
-        background: #ff4444;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    `;
-    button.addEventListener('click', () => {
-        cleanupStyles();
-        button.remove();
-    });
-    document.body.appendChild(button);
 }
