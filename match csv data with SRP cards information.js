@@ -239,6 +239,7 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
             const csvVehicle = csvMap[srpStockNumber];
     
             if (srpStockNumber && csvVehicle && typeof csvVehicle === 'object') {
+                // console.log("_____________________");
                 for (const [map_key, map] of Object.entries(fieldMap)) {
                     const srpSelector = customFieldMap[map_key] || map.srp;
                     const csvKey = map.csv;
@@ -250,11 +251,11 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
                         
                     const csvNormalizedValue = normalizeValue(map_key, csvRaw);
                     const srpNormalizedValue = normalizeValue(map_key, srpRaw);
-                    // console.log(csvKey+": "+srpSelector+": "+srpNormalizedValue);
 
                     if (await isExceptionValue(map_key, csvNormalizedValue, srpNormalizedValue)) {
                         continue;
                     }
+                    // console.log(csvKey+": "+srpSelector+": "+srpNormalizedValue);
     
                     let matched = srpNormalizedValue === csvNormalizedValue;  
                     
@@ -301,30 +302,42 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
     }
 
     async function isExceptionValue(csv_key, csv_value, srp_value) {
-        if (!srp_value && !csv_value) return true;        
+        if (!srp_value && !csv_value) return true;
+
+        let anyValue = "*.*";
     
         let mismatcheExceptions = [
-            { srp: [""], csv: ["SKIP"] },
-            { srp: ["–"], csv: ["0"] },
-            { srp: ["contactus"],  csv: [""] }
+            { csv: [anyValue], srp: [""] },
+            { csv: ["0"], srp: ["–"] },
+            { csv: [""], srp: ["contactus"] }
         ];
-
-        for (const exception of mismatcheExceptions) {
-            if (
-                exception.srp.includes(srp_value) &&
-                (exception.csv.includes(csv_value) || exception.csv.includes("SKIP"))
-            ) {
-                return true;
-            }
-        }
 
         switch (csv_key) {
             case 'PHOTOS':
                 const isSpinner = srp_value.includes('spinner.gif');
                 return isSpinner;
-            default:
-                return false;
+            case 'KILOMETERS':
+                var hasSRPReturnerVin = srp_value.length === 17;
+                if (hasSRPReturnerVin){
+                    return true;
+                }
+                break;
+            case 'VIN':
+                var hasSRPReturnerVin = srp_value.length === 17;
+
+                if (!hasSRPReturnerVin){
+                    return true;
+                }
+                break;
         }
+
+        for (const exception of mismatcheExceptions) {
+            if (exception.srp.includes(srp_value) &&
+                (exception.csv.includes(csv_value) || exception.csv.includes(anyValue))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     function normalizeValue(key, value) {
@@ -339,8 +352,7 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
                 normalized = normalized.toLowerCase();
                 return normalized.replace(/[$,]/g, '');
             case 'KILOMETERS':
-                normalized = normalized.toLowerCase();
-                return normalized.replace(/[km\s]|\.00000/g, '');
+                return normalized.replace(/[km\s,]|\.00000/g, '');
             default:
                 return normalized;
         }

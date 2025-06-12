@@ -161,7 +161,7 @@ root/
 # Known Issues
 
 * The scroll does not follow the currently processing card;
-    * Additionally, on paginated sites, the processing queue functions correctly, but the next page loads too early, making it difficult to locate the currently processing card.
+   * Additionally, on paginated sites, the processing queue functions correctly, but the next page loads too early, making it difficult to locate the currently processing card.
 * If OCR API was down, any timeout is being thrown;
 
 # Suggestions
