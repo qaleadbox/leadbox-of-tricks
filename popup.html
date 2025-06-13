@@ -545,7 +545,7 @@
     </div>
   </div>
 
-  <button id="check missing images">Find coming soon images <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
+  <button id="check missing images">Scan for Coming Soon Images <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
   <div id="ocrInput" style="display: none; background: white; padding: 10px; border-radius: 4px; position: relative; z-index: 1001; color: black;">
     <div style="background-color: #ff4444; color: white; padding: 10px; border-radius: 4px; margin-bottom: 10px; font-weight: bold; text-align: center; font-size: 16px; text-transform: uppercase;">
       Image checks for this site are only possible through the API
@@ -560,7 +560,7 @@ Steps:
     <textarea id="ocrKey" placeholder="Enter your OCR API key here..." style="height: 30px; min-height: 30px; max-height: 30px; resize: none;"></textarea>
     <button id="saveOcrKey">Save OCR Key</button>
   </div>
-  <script type="module" src="check missing images.js"></script>
+  <script type="module" src="coming-soon-checker.js"></script>
 
   <button id="match csv data with SRP cards information">Validate SRP Cards with CSV Data <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
   <div id="csvInput" style="display: none;">
@@ -573,9 +573,9 @@ Steps:
     <textarea id="csvData" placeholder="Paste CSV data here..."></textarea>
     <button id="processCSV">Process CSV</button>
   </div>
-  <script type="module" src="match csv data with SRP cards information.js"></script>
+  <script type="module" src="csv-srp-data-matcher.js"></script>
 
-  <button id="HREF extraction to spreadsheet">HREF extraction to spreadsheet <span class="availability-text">(AVAILABLE ON SITEMAPs)</span></button>
+  <button id="Copy Unordered List Links">Copy Unordered List Links <span class="availability-text">(AVAILABLE ON SITEMAPs)</span></button>
   <div class="modal-overlay" id="modalOverlay"></div>
   <div id="hrefInput">
     <div class="steps-label">
@@ -593,7 +593,7 @@ Steps:
     <button id="processHrefs">Extract the links</button>
   </div>
 
-  <script type="module" src="HREF extraction to spreadsheet.js"></script>
+  <script type="module" src="ul-link-extractor.js"></script>
   <script type="module" src="version.js"></script>
   <script type="module" src="popup.js"></script>
 

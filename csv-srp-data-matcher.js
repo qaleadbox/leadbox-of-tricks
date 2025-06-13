@@ -131,7 +131,7 @@ document.getElementById('processCSV').addEventListener('click', async () => {
 
     await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        files: ['scrolling.js', 'readVehiclesAndAddResults.js']
+        files: ['$scrolling.js', '$data-handler.js']
     });
 
     chrome.scripting.executeScript({
@@ -181,7 +181,7 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
             scannedVehicles = await window.scrollDownUntilLoadAllVehicles(result, csvData);
             
             const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
-            result = await window.readVehiclesAndAddResults(allVehicleCards, csvData, result, testType);
+            result = await window.$dataHandler(allVehicleCards, csvData, result, testType);
 
             const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
             console.log(message);

@@ -1,4 +1,4 @@
-import { checkImageWithOCR } from './Image Checker/imageCheckerByOCR.js';
+import { checkImageWithOCR } from './image-checker/ocr-image-checker.js';
 
 const FIELD_MAP = {
     STOCK_NUMBER:               { srp: ".stock_number",                     csv: "StockNumber" },
@@ -85,7 +85,7 @@ document.getElementById('check missing images').addEventListener('click', async 
 
     await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        files: ['scrolling.js', 'readVehiclesAndAddResults.js']
+        files: ['$scrolling.js', '$data-handler.js']
     });
 
     chrome.scripting.executeScript({
@@ -386,7 +386,7 @@ function callFindUrlsAndModels(testType, fieldMap) {
             scannedVehicles = await window.scrollDownUntilLoadAllVehicles(result, "", testType);
             
             const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
-            await window.readVehiclesAndAddResults(allVehicleCards, null, result, testType, window.highlightCard);
+            await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
 
             const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
             console.log(message);

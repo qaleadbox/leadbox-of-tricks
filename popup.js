@@ -187,7 +187,7 @@ featuresList.addEventListener('mouseleave', function() {
 });
 
 import { exportFieldMapsToJson, importFieldMapsFromJson } from './field-map-storage.js';
-import { exportToCSVFile } from './csvFileExporter.js';
+import { exportToCSVFile } from './$csv-exporter.js';
 
 document.getElementById('exportButton').addEventListener('click', async () => {
     try {

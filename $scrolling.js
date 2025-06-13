@@ -31,9 +31,9 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
             if (isThereANextPage()) {
                 const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
                 if (testType === "COMING_SOON_DETECTOR") {
-                    await window.readVehiclesAndAddResults(allVehicleCards, null, result, testType, window.highlightCard);
+                    await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
                 } else {
-                    await window.readVehiclesAndAddResults(allVehicleCards, csvData, result, testType);
+                    await window.$dataHandler(allVehicleCards, csvData, result, testType);
                 }
                 
                 getPaginationArrow().click();
@@ -43,9 +43,9 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
             } else {
                 const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
                 if (testType === "COMING_SOON_DETECTOR") {
-                    await window.readVehiclesAndAddResults(allVehicleCards, null, result, testType, window.highlightCard);
+                    await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
                 } else {
-                    await window.readVehiclesAndAddResults(allVehicleCards, csvData, result, testType);
+                    await window.$dataHandler(allVehicleCards, csvData, result, testType);
                 }
                 isMoreVehicleAvailable = false;
             }
@@ -53,9 +53,9 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
         else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
             const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
             if (testType === "COMING_SOON_DETECTOR") {
-                await window.readVehiclesAndAddResults(allVehicleCards, null, result, testType, window.highlightCard);
+                await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
             } else {
-                await window.readVehiclesAndAddResults(allVehicleCards, csvData, result, testType);
+                await window.$dataHandler(allVehicleCards, csvData, result, testType);
             }
 
             if (isViewMoreButtonVisible()) {
@@ -71,9 +71,9 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
             if (actualElementsLoaded != totalElementsLoaded) {
                 const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
                 if (testType === "COMING_SOON_DETECTOR") {
-                    await window.readVehiclesAndAddResults(allVehicleCards, null, result, testType, window.highlightCard);
+                    await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
                 } else {
-                    await window.readVehiclesAndAddResults(allVehicleCards, csvData, result, testType);
+                    await window.$dataHandler(allVehicleCards, csvData, result, testType);
                 }
 
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });

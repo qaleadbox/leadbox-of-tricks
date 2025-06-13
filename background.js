@@ -1,5 +1,5 @@
-import { checkImageWithOpenAI } from './Image Checker/imageCheckerByOpenAI.js';
-import { checkImageWithOCR } from './Image Checker/imageCheckerByOCR.js';
+import { checkImageWithOpenAI } from './image-checker/openai-image-checker.js';
+import { checkImageWithOCR } from './image-checker/ocr-image-checker.js';
 
 const icons = [
   "./icons/16x16/icon1.png",

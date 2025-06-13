@@ -1,4 +1,4 @@
-document.getElementById('HREF extraction to spreadsheet').addEventListener('click', () => {
+document.getElementById('Copy Unordered List Links').addEventListener('click', () => {
     const hrefInput = document.getElementById('hrefInput');
     if (hrefInput.style.display === 'none' || hrefInput.style.display === '') {
         hrefInput.style.display = 'block';

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LeadBox of Tricks",
-  "version": "2.7",
+  "version": "2.8",
   "description": "A toolbox designed to boost your productivity.",
   "permissions": [
     "scripting",
@@ -27,7 +27,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "Image Checker/imageCheckerByOpenAI.js",
+        "image-checker/openai-image-checker.js",
         "config.js"
       ],
       "matches": [
@@ -36,10 +36,10 @@
     },
     {
       "resources": [
-        "scrolling.js",
-        "readVehiclesAndAddResults.js",
+        "$scrolling.js",
+        "$data-handler.js",
         "field-map-storage.js",
-        "csvFileExporter.js"
+        "$csv-exporter.js"
       ],
       "matches": ["<all_urls>"]
     }
@@ -47,7 +47,7 @@
   "content_scripts": [
     {
       "matches": ["https://my.leadboxhq.net/*"],
-      "js": ["hack backend admin printer icon.js"],
+      "js": ["lead-print-icon-injector.js"],
       "type": "module"
     }
   ],

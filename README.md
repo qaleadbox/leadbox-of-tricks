@@ -36,7 +36,7 @@ A powerful Chrome extension designed to enhance LeadBox functionality with tools
 Check for "coming soon" images on SRPs.
 
 1. Navigate to any SRP page
-2. Click "Find coming soon images" button
+2. Click "Scan for Coming Soon Images" button
 3. If OCR is required:
    - Get your OCR API key from https://ocr.space/ocrapi/freekey
    - Enter the key in the popup
@@ -82,21 +82,21 @@ root/
 │   ├── 16x16/                                      # 16x16 icons
 │   ├── 48x48/                                      # 48x48 icons
 │   └── 128x128/                                    # 128x128 icons
-├── Image Checker/
-│   ├── imageCheckerByOCR.js                        # [SCRIPT] Space-OCR-API Integration
-│   └── imageCheckerByOpenAI.js                     # [SCRIPT] OpenAI-API Integration
+├── image-checker/
+│   ├── ocr-image-checker.js                        # [SCRIPT] Space-OCR-API Integration
+│   └── openai-image-checker.js                     # [SCRIPT] OpenAI-API Integration
+├── $csv-exporter.js                                # [SHARED SCRIPT] Feature's CSV exporter
+├── $data-handler.js                                # [SHARED SCRIPT] Feature's data handler
+├── $scrolling.js                                   # [SHARED SCRIPT] Feature's scroller
 ├── background.js                                   # [BACKGROUND] Default extension file
-├── check missing images.js                         # [MAIN SCRIPT] Missing images checker
-├── csvFileExporter.js                              # [SCRIPT] CSV exporter
+├── coming-soon-checker.js                          # [MAIN SCRIPT] Coming Soon Images checker
+├── csv-srp-data-matcher.js                         # [MAIN SCRIPT] CSV-SRP matcher
 ├── field-map-storage.js                            # [SCRIPT] Field map helper
-├── hack backend admin printer icon.js              # [MAIN SCRIPT] Leads printer icon script
-├── HREF extraction to spreadsheet.js               # [MAIN SCRIPT] Links extractor from HTML Unordered List <ul> component
+├── lead-print-icon-injector.js                     # [MAIN SCRIPT] Leads printer icon script
 ├── manifest.json                                   # [MANIFEST] Default extension file
-├── match csv data with SRP cards information.js    # [MAIN SCRIPT] CSV-SRP matcher
 ├── popup.html                                      # [POPUP] Default extension file
 ├── popup.js                                        # [SCRIPT] Popup actions
-├── readVehiclesAndAddResults.js                    # [SCRIPT] Multiple features data handler
-├── scrolling.js                                    # [SCRIPT] General scrolling
+├── ul-link-extractor.js                            # [MAIN SCRIPT] Links extractor from Unordered Lists <ul> component
 └── version.js                                      # [SCRIPT] Version handler
 ```
 
@@ -143,6 +143,7 @@ root/
 
 ## Version History
 
+- v2.8: Naming convention to files and buttons
 - v2.7: Main methods are now in separate files
 - v2.6: Importing/Exporting customized fields to a JSON file
 - v2.5: Added support for locally persist customized classes
@@ -174,7 +175,6 @@ root/
 * Processes should start when tap ENTER
 * When clicked outsite pop up, it closes and the data disappear
 * For check coming soon images, change the stockNumber column to the first on the output CSV file
-* check if kilometers are bein checked on CSV Matcher>VIN and KILOMETERS customized>bentonfryford
 * for comingsoonimagessize saved locally, save the image id instead the size, or both.
 
 # Goal

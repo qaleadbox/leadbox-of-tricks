@@ -1,4 +1,4 @@
-window.readVehiclesAndAddResults = async function(allVehicleCards, csvData, result, testType, highlightCard) {
+window.$dataHandler = async function(allVehicleCards, csvData, result, testType, highlightCard) {
     let csvMap = {};
     if (csvData) {
         csvMap = await csvParser(csvData);
