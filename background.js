@@ -56,55 +56,57 @@ async function handleOpenAICheck(imageUrl) {
     }
 }
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log('Background received message:', message.type, 'from tab:', sender.tab?.id);
-    
-    try {
-        switch (message.type) {
-            case 'startProcessing':
-                if (sender.tab?.id) {
-                    processingTabs.add(sender.tab.id);
-                    startRotation();
-                }
-                sendResponse({ success: true });
-                break;
-
-            case 'stopProcessing':
-                if (sender.tab?.id) {
-                    processingTabs.delete(sender.tab.id);
-                    if (processingTabs.size === 0) {
-                        stopRotation();
+Promise.resolve().then(() => {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        console.log('Background received message:', message.type, 'from tab:', sender.tab?.id);
+        
+        try {
+            switch (message.type) {
+                case 'startProcessing':
+                    if (sender.tab?.id) {
+                        processingTabs.add(sender.tab.id);
+                        startRotation();
                     }
-                }
-                sendResponse({ success: true });
-                break;
+                    sendResponse({ success: true });
+                    break;
 
-            case 'checkImageByOCR':
-                handleOCRCheck(message.imageUrl)
-                    .then(result => sendResponse({ success: true, result }))
-                    .catch(error => {
-                        console.error('OCR check error:', error);
-                        sendResponse({ success: false, error: error.message });
-                    });
-                return true;
+                case 'stopProcessing':
+                    if (sender.tab?.id) {
+                        processingTabs.delete(sender.tab.id);
+                        if (processingTabs.size === 0) {
+                            stopRotation();
+                        }
+                    }
+                    sendResponse({ success: true });
+                    break;
 
-            case 'checkImageByOpenAI':
-                handleOpenAICheck(message.imageUrl)
-                    .then(result => sendResponse({ success: true, result }))
-                    .catch(error => {
-                        console.error('OpenAI check error:', error);
-                        sendResponse({ success: false, error: error.message });
-                    });
-                return true;
+                case 'checkImageByOCR':
+                    handleOCRCheck(message.imageUrl)
+                        .then(result => sendResponse({ success: true, result }))
+                        .catch(error => {
+                            console.error('OCR check error:', error);
+                            sendResponse({ success: false, error: error.message });
+                        });
+                    return true;
 
-            default:
-                console.warn('Unknown message type:', message.type);
-                sendResponse({ success: false, error: 'Unknown message type' });
+                case 'checkImageByOpenAI':
+                    handleOpenAICheck(message.imageUrl)
+                        .then(result => sendResponse({ success: true, result }))
+                        .catch(error => {
+                            console.error('OpenAI check error:', error);
+                            sendResponse({ success: false, error: error.message });
+                        });
+                    return true;
+
+                default:
+                    console.warn('Unknown message type:', message.type);
+                    sendResponse({ success: false, error: 'Unknown message type' });
+            }
+        } catch (error) {
+            console.error('Error handling message:', error);
+            sendResponse({ success: false, error: error.message });
         }
-    } catch (error) {
-        console.error('Error handling message:', error);
-        sendResponse({ success: false, error: error.message });
-    }
+    });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {

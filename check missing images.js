@@ -1,5 +1,42 @@
 import { checkImageWithOCR } from './Image Checker/imageCheckerByOCR.js';
 
+const FIELD_MAP = {
+    STOCK_NUMBER:               { srp: ".stock_number",                     csv: "StockNumber" },
+    DEALER_ID:                  { srp: "",                                  csv: "Dealer Id" },
+    CONDITION:                  { srp: ".value__status",                    csv: "Condition" },
+    LAST_UPDATE:                { srp: "",                                  csv: "LastUpdate" },
+    YEAR:                       { srp: ".value__year",                      csv: "Year" },
+    MAKE:                       { srp: ".value__make",                      csv: "Make" },
+    MODEL:                      { srp: ".value__model",                     csv: "Model" },
+    PHOTOS:                     { srp: ".main-img",                         csv: "Photos" },
+    PHOTO_UPDATE:               { srp: "",                                  csv: "PhotoUpdate" },
+    ADDITIONAL_PHOTOS:          { srp: "",                                  csv: "AdditionalPhotos" },
+    ADDITIONAL_PHOTOS_UPDATE:   { srp: "",                                  csv: "AdditionalPhotosUpdate" },
+    BODY:                       { srp: "",                                  csv: "Body" },
+    DOORS:                      { srp: "",                                  csv: "Doors" },
+    DRIVE:                      { srp: ".text__drivetrain",                 csv: "Drive" },
+    ENGINE:                     { srp: ".text__engine",                     csv: "Engine" },
+    MFG_EXTERIOR_COLOR:         { srp: ".value__exterior .uppercase",       csv: "MFGExteriorColor" },
+    EXTERIOR_COLOR:             { srp: "",                                  csv: "ExteriorColor" },
+    FUEL:                       { srp: "",                                  csv: "Fuel" },
+    INTERIOR_COLOR:             { srp: "",                                  csv: "InteriorColor" },
+    NO_PASSENGERS:              { srp: "",                                  csv: "NoPassengers" },
+    PRICE:                      { srp: ".price__second",                    csv: "Price" },
+    TRIM:                       { srp: ".value__trim",                      csv: "Trim" },
+    VIN:                        { srp: ".value__vin span.uppercase",        csv: "VIN" },
+    KILOMETERS:                 { srp: ".value__mileage span.uppercase",    csv: "Kilometers" },
+    TRANSMISSION:               { srp: "",                                  csv: "Transmission" },
+    DESCRIPTION:                { srp: "",                                  csv: "Description" },
+    OPTIONS:                    { srp: "",                                  csv: "Options" },
+    TYPE:                       { srp: "",                                  csv: "Type" },
+    SUB_TYPE:                   { srp: "",                                  csv: "SubType" },
+    VDP_URL:                    { srp: "",                                  csv: "VDP Url" },
+    AGE:                        { srp: "",                                  csv: "Age" },
+    IS_CGI_PICTURE:             { srp: "",                                  csv: "IsCGIPicture" },
+    IS_VIN_SAVER:               { srp: "",                                  csv: "IsVinSaver" },
+    IS_JUMPSTART:               { srp: "",                                  csv: "IsJumpstart" }
+};
+
 function cleanupStyles() {
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
         chrome.scripting.executeScript({
@@ -43,12 +80,18 @@ document.getElementById('check missing images').addEventListener('click', async 
         }
     }
 
-    const testType = event.target.textContent.trim().toLowerCase().replace(/\s+/g, '-');
+    const testType = "COMING_SOON_DETECTOR";
     cleanupStyles();
+
+    await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['scrolling.js', 'readVehiclesAndAddResults.js']
+    });
+
     chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: callFindUrlsAndModels,
-        args: [testType]
+        args: [testType, FIELD_MAP]
     });
 });
 
@@ -72,12 +115,15 @@ chrome.storage.local.get(['ocrKey'], (result) => {
     }
 });
 
-function callFindUrlsAndModels(testType) {
+function callFindUrlsAndModels(testType, fieldMap) {
     let scannedVehicles = 0;
     let result = [];
     let lastProcessingTime = 0;
     let globalStyleElement = null;
     let isProcessing = true;
+
+    window.fieldMap = fieldMap;
+    window.customFieldMap = {};
 
     function addCleanupButton() {
         const button = document.createElement('button');
@@ -254,29 +300,7 @@ function callFindUrlsAndModels(testType) {
         return globalStyleElement;
     }
 
-    addProcessingStyles();
-
-    document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').forEach(card => {
-        card.classList.remove('processed-card', 'coming-soon-card', 'processing-card');
-        card.classList.add('waiting-card');
-        card.setAttribute('data-processing-info', 'Waiting...');
-    });
-
-    function updateProcessingInfo(element, currentTime, lastTime, isProcessed = false, isComingSoon = false) {
-        let timeInfo;
-        if (isComingSoon) {
-            timeInfo = `Coming Soon (${currentTime.toFixed(2)}s)`;
-        } else if (isProcessed) {
-            timeInfo = `Processed in ${currentTime.toFixed(2)}s`;
-        } else {
-            timeInfo = lastTime > 0 
-                ? `Processing... (Last: ${lastTime.toFixed(2)}s)`
-                : 'Processing...';
-        }
-        element.setAttribute('data-processing-info', timeInfo);
-    }
-
-    async function highlightCard(element, processingFunction) {
+    window.highlightCard = async function(element, processingFunction) {
         addProcessingStyles();
         element.classList.add('processing-card');
         
@@ -316,215 +340,9 @@ function callFindUrlsAndModels(testType) {
             updateProcessingInfo(element, (performance.now() - startTime) / 1000, lastProcessingTime, true);
             throw error;
         }
-    }
+    };
 
-    async function readVehiclesAndAddResults() {
-        const PAGINATION_SCROLL_TYPE = isPaginationScrollType();
-        const VIEW_MORE_VEHICLES_SCROLL_TYPE = isViewMoreScrollType();
-        const elements = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1');
-
-        for (const element of elements) {
-            if (element.classList.contains('processed-card')) continue;
-
-            const modelElement = element.querySelector('.value__model');
-            const trimElement = element.querySelector('.value__trim');
-            const stockNumberElement = element.querySelector('.stock_label') || element.querySelector('.stock_number') || element.querySelector('.value__stock');
-            const imageUrlElement = element.querySelector('.main-img');
-            const sourceElement = element.querySelector('source');
-
-            try {
-                if (modelElement && stockNumberElement && (imageUrlElement || sourceElement)) {
-                    const model = modelElement.textContent.trim();
-                    const trim = trimElement ? trimElement.textContent.trim() : '';
-                    
-                    let stockNumber = '';
-                    if (stockNumberElement.classList.contains('stock_label')) {
-                        const stockNumberText = stockNumberElement.textContent.trim();
-                        stockNumber = stockNumberText.split('Stock#:')[1]?.trim() || '';
-                    } else {
-                        stockNumber = stockNumberElement.textContent.trim();
-                    }
-
-                    let imageUrl = '';
-                    if (imageUrlElement?.dataset.src) {
-                        imageUrl = imageUrlElement.dataset.src;
-                    } else if (sourceElement?.srcset) {
-                        imageUrl = sourceElement.srcset;
-                    } else if (imageUrlElement?.src) {
-                        imageUrl = imageUrlElement.src;
-                    }
-
-                    if (imageUrl && stockNumber) {
-                        element.classList.remove('waiting-card');
-                        
-                        if (PAGINATION_SCROLL_TYPE) {
-                            const isComingSoon = await highlightCard(element, async () => {
-                                return await isComingSoonImageByOCR(imageUrl);
-                            });
-                            
-                            if (isComingSoon) {
-                                result.push({ model, trim, stockNumber, imageUrl });
-                            }
-                        } 
-                        else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
-                            await highlightCard(element, async () => {
-                                if (isBetterPhotoImage(imageUrl)) {
-                                    const alreadyExists = result.some(item => item.stockNumber === stockNumber);
-                                    if (!alreadyExists) {
-                                        result.push({ model, trim, stockNumber, imageUrl });
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            });
-                        } else {
-                            await highlightCard(element, async () => {
-                                if (isBetterPhotoImage(imageUrl)) {
-                                    const alreadyExists = result.some(item => item.stockNumber === stockNumber);
-                                    if (!alreadyExists) {
-                                        result.push({ model, trim, stockNumber, imageUrl });
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            });
-                        }
-                    } else {
-                        console.log('Missing required data:', {
-                            hasImageUrl: !!imageUrl,
-                            hasStockNumber: !!stockNumber
-                        });
-                        element.classList.remove('waiting-card');
-                        element.classList.add('processed-card');
-                        element.setAttribute('data-processing-info', 'Missing data');
-                    }
-                } else {
-                    console.log('Missing required elements:', {
-                        hasModel: !!modelElement,
-                        hasStockNumber: !!stockNumberElement,
-                        hasImage: !!(imageUrlElement || sourceElement)
-                    });
-                    element.classList.remove('waiting-card');
-                    element.classList.add('processed-card');
-                    element.setAttribute('data-processing-info', 'Missing elements');
-                }
-            } catch (error) {
-                console.error("An error occurred while processing elements:", error);
-                element.classList.remove('waiting-card');
-                element.classList.add('processed-card');
-                element.setAttribute('data-processing-info', 'Error processing');
-            }
-        }
-    }
-
-    async function findUrlsAndModels(testType) {
-        try {
-            scannedVehicles = await scrollDownUntilLoadAllVehicles();
-            const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
-            console.log(message);
-            console.log(result);
-
-            exportToCSVFile(result, testType);
-            addCleanupButton();
-        } finally {
-            if (observer) {
-                observer.disconnect();
-            }
-            try {
-                await chrome.runtime.sendMessage({ type: 'stopProcessing' });
-            } catch (error) {
-                console.warn('Could not send stopProcessing message:', error);
-            }
-            isProcessing = false;
-        }
-    }
-
-    async function scrollDownUntilLoadAllVehicles() {
-        let actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
-        let totalElementsLoaded = 0;
-        let isMoreVehicleAvailable = true;
-        let noNewVehiclesCount = 0;
-
-        while (isMoreVehicleAvailable) {
-            const PAGINATION_SCROLL_TYPE = isPaginationScrollType();
-            const VIEW_MORE_VEHICLES_SCROLL_TYPE = isViewMoreScrollType();
-
-            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
-
-            if (PAGINATION_SCROLL_TYPE) {
-                totalElementsLoaded += actualElementsLoaded;
-                if (isThereANextPage()) {
-                    getPaginationArrow().click();
-                    console.warn('Clicking pagination next page arrow...');
-                    noNewVehiclesCount = 0;
-                } else {
-                    isMoreVehicleAvailable = false;
-                }
-            }
-            else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
-                totalElementsLoaded = actualElementsLoaded;
-                if (isViewMoreButtonVisible()) {
-                    getViewMoreButton().click();
-                    console.warn('Clicking "View More Vehicles" button...');
-                    noNewVehiclesCount = 0;
-                } else {
-                    isMoreVehicleAvailable = false;
-                }
-            }
-            else {
-                if (actualElementsLoaded > totalElementsLoaded) {
-                    console.warn('Scrolling to see more vehicles...');
-                    totalElementsLoaded = actualElementsLoaded;
-                    noNewVehiclesCount = 0;
-                } else {
-                    noNewVehiclesCount++;
-                    if (noNewVehiclesCount >= 3) {
-                        isMoreVehicleAvailable = false;
-                    }
-                }
-            }
-            console.warn(`${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
-            await readVehiclesAndAddResults();
-        }
-        console.warn("Finished scrolling, all vehicles loaded.");
-        return totalElementsLoaded;
-    }
-
-    function exportToCSVFile(data, testType) {
-        if (data.length === 0) {
-            alert('No data to export!');
-            return;
-        }
-
-        const siteName = window.location.hostname.replace('www.', '');
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
-        const filename = `${siteName}_${testType.toUpperCase()}_${timestamp}.csv`;
-
-        const headers = ['Model', 'Trim', 'Stock Number', 'Image URL'];
-        const rows = data.map(item => [item.model, item.trim, item.stockNumber, item.imageUrl]);
-
-        const csvContent = [
-            headers.join(','),
-            ...rows.map(row => row.map(value => `"${value}"`).join(','))
-        ].join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-
-        link.href = url;
-        link.download = `${filename}.csv`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }
-
-    async function isComingSoonImageByOCR(imageUrl){        
+    window.isComingSoonImageByOCR = async function(imageUrl) {
         try {
             const response = await chrome.runtime.sendMessage({
                 type: 'checkImageByOCR',
@@ -538,6 +356,60 @@ function callFindUrlsAndModels(testType) {
         } catch (error) {
             console.warn('Error checking image with OCR:', error);
             return false;
+        }
+    };
+
+    addProcessingStyles();
+
+    document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').forEach(card => {
+        card.classList.remove('processed-card', 'coming-soon-card', 'processing-card');
+        card.classList.add('waiting-card');
+        card.setAttribute('data-processing-info', 'Waiting...');
+    });
+
+    function updateProcessingInfo(element, currentTime, lastTime, isProcessed = false, isComingSoon = false) {
+        let timeInfo;
+        if (isComingSoon) {
+            timeInfo = `Coming Soon (${currentTime.toFixed(2)}s)`;
+        } else if (isProcessed) {
+            timeInfo = `Processed in ${currentTime.toFixed(2)}s`;
+        } else {
+            timeInfo = lastTime > 0 
+                ? `Processing... (Last: ${lastTime.toFixed(2)}s)`
+                : 'Processing...';
+        }
+        element.setAttribute('data-processing-info', timeInfo);
+    }
+
+    async function findUrlsAndModels(testType) {
+        try {
+            scannedVehicles = await window.scrollDownUntilLoadAllVehicles(result, "", testType);
+            
+            const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
+            await window.readVehiclesAndAddResults(allVehicleCards, null, result, testType, window.highlightCard);
+
+            const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
+            console.log(message);
+            console.log(result);
+
+            chrome.runtime.sendMessage({
+                type: 'exportToCSV',
+                data: result,
+                testType: testType,
+                siteName: window.location.hostname.replace('www.', '')
+            });
+            
+            addCleanupButton();
+        } finally {
+            if (observer) {
+                observer.disconnect();
+            }
+            try {
+                await chrome.runtime.sendMessage({ type: 'stopProcessing' });
+            } catch (error) {
+                console.warn('Could not send stopProcessing message:', error);
+            }
+            isProcessing = false;
         }
     }
 
@@ -558,43 +430,5 @@ function callFindUrlsAndModels(testType) {
             return false;
         }
     }
-
-    async function getImageFileSize(url) {
-        try {
-            const response = await fetch(url, { method: 'HEAD' });
-            const size = response.headers.get('Content-Length');
-            return size ? parseInt(size, 10) : 0;
-        } catch (err) {
-            console.warn('Could not fetch image size:', url, err);
-            return 0;
-        }
-    }
-
-    function isPaginationScrollType() {
-        return document.querySelector('div.lbx-paginator') !== null;
-    }
-    function getPaginationArrow() {
-        return document.querySelector('.right-arrow');
-    }
-    function isThereANextPage() {
-        const rightArrow = getPaginationArrow();
-        return rightArrow && rightArrow.offsetParent !== null;
-    }
-
-    function isViewMoreScrollType() {
-        return document.querySelector('button.lbx-load-more-btn') !== null;
-    }
-    function getViewMoreButton() {
-        return document.querySelector('button.lbx-load-more-btn');
-    }
-    function isViewMoreButtonVisible() {
-        const btn = document.querySelector('button.lbx-load-more-btn');
-        return btn && btn.offsetParent !== null;
-    }
-
-    function isBetterPhotoImage(imageUrl) {
-        return imageUrl.includes('better-photo.jpg');
-    }
-
     findUrlsAndModels(testType);
 }

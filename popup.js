@@ -82,6 +82,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             toggleLoading(false);
         }, 500);
         sendResponse({ success: true });
+    } else if (message.type === 'exportToCSV') {
+        console.log('Received export message:', {
+            testType: message.testType,
+            dataType: typeof message.data,
+            isArray: Array.isArray(message.data),
+            keys: Object.keys(message.data || {}),
+            sample: message.data ? Object.values(message.data)[0] : null
+        });
+        exportToCSVFile(message.data, message.testType, message.siteName);
+        sendResponse({ success: true });
     }
     return true;
 });
@@ -177,6 +187,7 @@ featuresList.addEventListener('mouseleave', function() {
 });
 
 import { exportFieldMapsToJson, importFieldMapsFromJson } from './field-map-storage.js';
+import { exportToCSVFile } from './csvFileExporter.js';
 
 document.getElementById('exportButton').addEventListener('click', async () => {
     try {

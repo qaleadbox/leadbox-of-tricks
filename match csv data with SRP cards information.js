@@ -126,8 +126,14 @@ document.getElementById('processCSV').addEventListener('click', async () => {
     }
 
     const customFieldMap = await getCurrentFieldMap();
-    const testType = 'match-csv-data-with-srp-cards-information';
+    const testType = 'CSV_SRP_DATA_MATCHER';
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['scrolling.js', 'readVehiclesAndAddResults.js']
+    });
+
     chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: callFindUrlsAndModels,
@@ -141,12 +147,30 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
     let isProcessing = true;
     let globalStyleElement = null;
 
-    chrome.runtime.sendMessage({ 
-        type: 'startProcessing'
-    }, (response) => {
+    window.fieldMap = fieldMap;
+    window.customFieldMap = customFieldMap;
+
+    async function safeSendMessage(message) {
+        try {
+            return new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage(message, (response) => {
+                    if (chrome.runtime.lastError) {
+                        console.log('Message send error:', chrome.runtime.lastError);
+                        resolve(null);
+                    } else {
+                        resolve(response);
+                    }
+                });
+            });
+        } catch (error) {
+            console.log('Error sending message:', error);
+            return null;
+        }
+    }
+
+    safeSendMessage({ type: 'startProcessing' }).then(response => {
         if (!response || !response.success) {
-            console.error('Failed to start processing');
-            return;
+            console.log('Failed to start processing');
         }
     });
 
@@ -154,282 +178,26 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
 
     async function findUrlsAndModels(testType, csvData) {
         try {
-            scannedVehicles = await scrollDownUntilLoadAllVehicles(result, csvData);
+            scannedVehicles = await window.scrollDownUntilLoadAllVehicles(result, csvData);
+            
+            const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
+            result = await window.readVehiclesAndAddResults(allVehicleCards, csvData, result, testType);
 
             const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
             console.log(message);
-            console.log(result);
             
-            exportToCSVFile(result, testType);
+            await safeSendMessage({
+                type: 'exportToCSV',
+                data: result,
+                testType: testType,
+                siteName: window.location.hostname.replace('www.', '')
+            });
         } finally {
             if (globalStyleElement) {
                 globalStyleElement.remove();
             }
-            chrome.runtime.sendMessage({ 
-                type: 'stopProcessing'
-            }, (response) => {
-                if (!response || !response.success) {
-                    console.error('Failed to stop processing');
-                }
-                isProcessing = false;
-            });
+            await safeSendMessage({ type: 'stopProcessing' });
+            isProcessing = false;
         }
-    }
-
-    async function scrollDownUntilLoadAllVehicles(result, csvData) {
-        let actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
-        let totalElementsLoaded = 0;
-        let isMoreVehicleAvailable = true;
-
-        while (isMoreVehicleAvailable) {
-            const PAGINATION_SCROLL_TYPE = isPaginationScrollType();
-            const VIEW_MORE_VEHICLES_SCROLL_TYPE = isViewMoreScrollType();
-
-            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-
-            actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            if (PAGINATION_SCROLL_TYPE) {
-                totalElementsLoaded += actualElementsLoaded;
-                if (isThereANextPage()) {
-                    getPaginationArrow().click();
-                    console.warn('Clicking pagination next page arrow...');
-                }
-                else {
-                    isMoreVehicleAvailable = false;
-                }
-            }
-            else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
-                totalElementsLoaded = actualElementsLoaded;
-                if (isViewMoreButtonVisible()) {
-                    getViewMoreButton().click();
-                    console.warn('Clicking "View More Vehicles" button...');
-                }
-                else {
-                    isMoreVehicleAvailable = false;
-                }
-            }
-            else {
-                if (actualElementsLoaded != totalElementsLoaded) {
-                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-
-                    console.warn('Scrolling to see more vehicles...');
-                    totalElementsLoaded = actualElementsLoaded;
-                }
-                else {
-                    isMoreVehicleAvailable = false;
-                }
-            }
-            console.warn(`${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
-            await readVehiclesAndAddResults(result, csvData);
-        }
-        console.warn("Finished scrolling, all vehicles loaded.");
-        return totalElementsLoaded;
-    }
-
-    async function readVehiclesAndAddResults(result, csvData) {
-        const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
-        const csvMap = await csvParser(csvData);
-    
-        for (const srpVehicle of allVehicleCards) {
-            const stockSelector = customFieldMap.STOCK_NUMBER || fieldMap.STOCK_NUMBER.srp;
-            const srpStockNumber = await getTextFromVehicleCard(srpVehicle, stockSelector);
-            const csvVehicle = csvMap[srpStockNumber];
-    
-            if (srpStockNumber && csvVehicle && typeof csvVehicle === 'object') {
-                // console.log("_____________________");
-                for (const [map_key, map] of Object.entries(fieldMap)) {
-                    const srpSelector = customFieldMap[map_key] || map.srp;
-                    const csvKey = map.csv;
-
-                    if (!csvKey || !srpSelector) continue;
-    
-                    const srpRaw = await getTextFromVehicleCard(srpVehicle, srpSelector);
-                    const csvRaw = csvVehicle[csvKey];
-                        
-                    const csvNormalizedValue = normalizeValue(map_key, csvRaw);
-                    const srpNormalizedValue = normalizeValue(map_key, srpRaw);
-
-                    if (await isExceptionValue(map_key, csvNormalizedValue, srpNormalizedValue)) {
-                        continue;
-                    }
-                    // console.log(csvKey+": "+srpSelector+": "+srpNormalizedValue);
-    
-                    let matched = srpNormalizedValue === csvNormalizedValue;  
-                    
-                    if (!matched) {
-                        let isNotOnResultsYet = !result[srpStockNumber];
-                        
-                        if (isNotOnResultsYet) {
-                            result[srpStockNumber] = { mismatches: {} };
-                        }
-                    
-                        result[srpStockNumber].mismatches[map_key] = {
-                            csv: csvNormalizedValue,
-                            srp: srpNormalizedValue
-                        };
-                    }
-                }
-            }
-        }    
-        return allVehicleCards.length;
-    }
-
-    function exportToCSVFile(data, testType) {
-        if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
-            alert('No data to export!');
-            return;
-        }
-    
-        const filename = `${window.location.hostname.replace('www.', '')}_${testType.toUpperCase()}_${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.csv`;
-        const lines = ['StockNumber,Field,CSV,SRP'];
-    
-        for (const stockNumber in data) {
-            const mismatches = data[stockNumber].mismatches;
-            for (const field in mismatches) {
-                const { srp, csv } = mismatches[field];
-                lines.push(`"${stockNumber}","${field}","${csv}","${srp}"`);
-            }
-        }
-    
-        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        link.click();
-    }
-
-    async function isExceptionValue(csv_key, csv_value, srp_value) {
-        if (!srp_value && !csv_value) return true;
-
-        let anyValue = "*.*";
-    
-        let mismatcheExceptions = [
-            { csv: [anyValue], srp: [""] },
-            { csv: ["0"], srp: ["–"] },
-            { csv: [""], srp: ["contactus"] }
-        ];
-
-        switch (csv_key) {
-            case 'PHOTOS':
-                const isSpinner = srp_value.includes('spinner.gif');
-                return isSpinner;
-            case 'KILOMETERS':
-                var hasSRPReturnerVin = srp_value.length === 17;
-                if (hasSRPReturnerVin){
-                    return true;
-                }
-                break;
-            case 'VIN':
-                var hasSRPReturnerVin = srp_value.length === 17;
-
-                if (!hasSRPReturnerVin){
-                    return true;
-                }
-                break;
-        }
-
-        for (const exception of mismatcheExceptions) {
-            if (exception.srp.includes(srp_value) &&
-                (exception.csv.includes(csv_value) || exception.csv.includes(anyValue))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function normalizeValue(key, value) {
-        if (!value) return '';
-
-        let normalized = value.toString().trim();
-    
-        switch (key){
-            case 'CONDITION':
-                return normalized.toLowerCase();
-            case 'PRICE':
-                normalized = normalized.toLowerCase();
-                return normalized.replace(/[$,]/g, '');
-            case 'KILOMETERS':
-                return normalized.replace(/[km\s,]|\.00000/g, '');
-            default:
-                return normalized;
-        }
-    }
-
-    async function getTextFromVehicleCard(vehicleCard, selector) {
-        try {
-            if (!vehicleCard) return "";
-            
-            const vehicleCardElement = vehicleCard.querySelector(selector);
-            if (!vehicleCardElement) return "";
-            
-            switch (vehicleCardElement.tagName) {
-                case "IMG":
-                    return handleImageElement(vehicleCardElement);
-                default:
-                    return handleTextElement(vehicleCardElement);
-            }
-        } catch (error) {
-            console.error("An error occurred while getting the text:", error);
-            return "";
-        }
-    }
-
-    function handleImageElement(imgElement) {
-        const imgSrc = imgElement.src || "";
-        const imgSrcCardByThirdpartyReplacement = imgSrc.replace("-card.", "-THIRDPARTY.");
-        return imgSrcCardByThirdpartyReplacement || "";
-    }
-
-    function handleTextElement(element) {
-        let textSurroundingSpacesTrimmed = element.textContent.trim();
-        return textSurroundingSpacesTrimmed.includes("Stock#:") ? textSurroundingSpacesTrimmed.replace("Stock#:", "").trim() : textSurroundingSpacesTrimmed;
-    }
-    
-    async function csvParser(csvVehicle) {
-        const lines = csvVehicle.trim().split('\n');
-        const headers = lines[0].split('|');
-      
-        const stockDataMap = {};
-        let values, entry = {};
-      
-        for (let i = 1; i < lines.length; i++) {
-            values = lines[i].split('|');
-            entry = {};
-      
-            headers.forEach((key, index) => {
-                entry[key.trim()] = values[index]?.trim() ?? '';
-            });
-      
-            const stockNumber = entry['StockNumber'];
-            if (stockNumber) {
-                stockDataMap[stockNumber] = entry;
-            }
-        }
-        return stockDataMap;
-    }
-
-    function isPaginationScrollType() {
-        return document.querySelector('div.lbx-paginator') !== null;
-    }
-    function getPaginationArrow() {
-        return document.querySelector('.right-arrow');
-    }
-    function isThereANextPage() {
-        const rightArrow = getPaginationArrow();
-        return rightArrow && rightArrow.offsetParent !== null;
-    }
-
-    function isViewMoreScrollType() {
-        return document.querySelector('button.lbx-load-more-btn') !== null;
-    }
-    function getViewMoreButton() {
-        return document.querySelector('button.lbx-load-more-btn');
-    }
-    function isViewMoreButtonVisible() {
-        const btn = document.querySelector('button.lbx-load-more-btn');
-        return btn && btn.offsetParent !== null;
     }
 }

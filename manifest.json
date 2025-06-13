@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LeadBox of Tricks",
-  "version": "2.6",
+  "version": "2.7",
   "description": "A toolbox designed to boost your productivity.",
   "permissions": [
     "scripting",
@@ -33,12 +33,25 @@
       "matches": [
         "<all_urls>"
       ]
+    },
+    {
+      "resources": [
+        "scrolling.js",
+        "readVehiclesAndAddResults.js",
+        "field-map-storage.js",
+        "csvFileExporter.js"
+      ],
+      "matches": ["<all_urls>"]
     }
   ],
   "content_scripts": [
     {
       "matches": ["https://my.leadboxhq.net/*"],
-      "js": ["hack backend admin printer icon.js"]
+      "js": ["hack backend admin printer icon.js"],
+      "type": "module"
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
 }

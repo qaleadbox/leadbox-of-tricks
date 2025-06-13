@@ -75,26 +75,29 @@ Steps:
 
 # Structure
 
-## Folders
-
+## File Tree
 ```
 root/
-├── icons/                                          # Extension Icon's folder
+├── icons/
 │   ├── 16x16/                                      # 16x16 icons
 │   ├── 48x48/                                      # 48x48 icons
 │   └── 128x128/                                    # 128x128 icons
-├── Image Checker/                                  # Checking coming soon images module
-│   ├── imageCheckerByOCR.js                        # OCR integration Script
-│   └── imageCheckerByOpenAI.js                     # OpenAI integration Script
-├── popup.html                                      # Interface HTML file
-├── check missing images.js                         # Crawl coming soon images script
-├── match csv data with SRP cards information.js    # CSV-SRP Cards comparison script
-├── HREF extraction to spreadsheet.js               # HREF extractor script
-├── hack backend admin printer icon.js              # Customized listener script for backend admin
-├── background.js                                   # Background behavior file
-├── version.js                                      # Version management script
-├── manifest.json                                   # Main configuration file
-└── README.md                                       # This Markdown instructions file
+├── Image Checker/
+│   ├── imageCheckerByOCR.js                        # [SCRIPT] Space-OCR-API Integration
+│   └── imageCheckerByOpenAI.js                     # [SCRIPT] OpenAI-API Integration
+├── background.js                                   # [BACKGROUND] Default extension file
+├── check missing images.js                         # [MAIN SCRIPT] Missing images checker
+├── csvFileExporter.js                              # [SCRIPT] CSV exporter
+├── field-map-storage.js                            # [SCRIPT] Field map helper
+├── hack backend admin printer icon.js              # [MAIN SCRIPT] Leads printer icon script
+├── HREF extraction to spreadsheet.js               # [MAIN SCRIPT] Links extractor from HTML Unordered List <ul> component
+├── manifest.json                                   # [MANIFEST] Default extension file
+├── match csv data with SRP cards information.js    # [MAIN SCRIPT] CSV-SRP matcher
+├── popup.html                                      # [POPUP] Default extension file
+├── popup.js                                        # [SCRIPT] Popup actions
+├── readVehiclesAndAddResults.js                    # [SCRIPT] Multiple features data handler
+├── scrolling.js                                    # [SCRIPT] General scrolling
+└── version.js                                      # [SCRIPT] Version handler
 ```
 
 # Requirements
@@ -140,6 +143,7 @@ root/
 
 ## Version History
 
+- v2.7: Main methods are now in separate files
 - v2.6: Importing/Exporting customized fields to a JSON file
 - v2.5: Added support for locally persist customized classes
 - v2.4: Added support for comparing vehicle card main image links between CSV and SRP.
@@ -162,14 +166,16 @@ root/
 
 * The scroll does not follow the currently processing card;
    * Additionally, on paginated sites, the processing queue functions correctly, but the next page loads too early, making it difficult to locate the currently processing card.
-* If OCR API was down, any timeout is being thrown;
+* If OCR API was down, the cards should have a new tag "API is offline"
+* Start a process, reopen popup, it will be not locked(loading)
 
 # Suggestions
 
 * Processes should start when tap ENTER
 * When clicked outsite pop up, it closes and the data disappear
 * For check coming soon images, change the stockNumber column to the first on the output CSV file
-
+* check if kilometers are bein checked on CSV Matcher>VIN and KILOMETERS customized>bentonfryford
+* for comingsoonimagessize saved locally, save the image id instead the size, or both.
 
 # Goal
 
