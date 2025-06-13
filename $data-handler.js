@@ -21,7 +21,7 @@ window.$dataHandler = async function(allVehicleCards, csvData, result, testType,
                     processedVehicles++;
                     let hasMismatches = false;
                     let mismatches = {};
-                    console.log("_____________________");
+                    // console.log("_____________________");
 
                     for (const [map_key, map] of Object.entries(window.fieldMap)) {
                         const srpSelector = window.customFieldMap[map_key] || map.srp;
@@ -34,7 +34,7 @@ window.$dataHandler = async function(allVehicleCards, csvData, result, testType,
 
                         const csvNormalizedValue = normalizeValue(map_key, csvRaw);
                         const srpNormalizedValue = normalizeValue(map_key, srpRaw);
-                        console.log(csvKey+": "+srpSelector+": "+srpNormalizedValue);
+                        // console.log(csvKey+": "+srpSelector+": "+csvNormalizedValue+": "+srpNormalizedValue);
 
                         if (await isExceptionValue(map_key, csvNormalizedValue, srpNormalizedValue)) {
                             continue;
@@ -45,8 +45,8 @@ window.$dataHandler = async function(allVehicleCards, csvData, result, testType,
                         if (!matched) {
                             hasMismatches = true;
                             mismatches[map_key] = {
-                                csv: csvRaw,
-                                srp: srpRaw
+                                csv: csvNormalizedValue,
+                                srp: srpNormalizedValue
                             };
                         }
                     }

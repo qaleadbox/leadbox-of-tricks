@@ -143,6 +143,7 @@ root/
 
 ## Version History
 
+- v2.9: Hotfix all result values are normalized
 - v2.8: Naming convention to files and buttons
 - v2.7: Main methods are now in separate files
 - v2.6: Importing/Exporting customized fields to a JSON file
