@@ -143,6 +143,7 @@ root/
 
 ## Version History
 
+- v3.0: CSV keys are reconixed dynamically after CSV data are inserted & Hotfix image links normalization
 - v2.9: Hotfix all result values are normalized
 - v2.8: Naming convention to files and buttons
 - v2.7: Main methods are now in separate files
@@ -170,13 +171,18 @@ root/
    * Additionally, on paginated sites, the processing queue functions correctly, but the next page loads too early, making it difficult to locate the currently processing card.
 * If OCR API was down, the cards should have a new tag "API is offline"
 * Start a process, reopen popup, it will be not locked(loading)
+* When any result is found, the icon keeps spinning
+* Remove all hard code to implement full autodetect approach, occurrances on $data-handler.js > (e.g. "STOCKNUMBER", "KILOMETERS", "VIN", "PRICE", "CONDITION", "PRICE", etc)
 
 # Suggestions
 
 * Processes should start when tap ENTER
 * When clicked outsite pop up, it closes and the data disappear
+* Sometimes the extension process stops unexpectedly when the popup closes
 * For check coming soon images, change the stockNumber column to the first on the output CSV file
 * for comingsoonimagessize saved locally, save the image id instead the size, or both.
+* OCR API is commonly down, should be good to test OCR locally
+* "No matching CSV header found for field:" is shwoing on countychevrolet
 
 # Goal
 

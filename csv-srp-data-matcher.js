@@ -1,153 +1,197 @@
 import { saveFieldMapValues, getFieldMapValues } from './field-map-storage.js';
 
-const FIELD_MAP = {
-    STOCK_NUMBER:               { srp: ".stock_number",                     csv: "StockNumber" },
-    DEALER_ID:                  { srp: "",                                  csv: "Dealer Id" },
-    CONDITION:                  { srp: ".value__status",                    csv: "Condition" },
-    LAST_UPDATE:                { srp: "",                                  csv: "LastUpdate" },
-    YEAR:                       { srp: ".value__year",                      csv: "Year" },
-    MAKE:                       { srp: ".value__make",                      csv: "Make" },
-    MODEL:                      { srp: ".value__model",                     csv: "Model" },
-    PHOTOS:                     { srp: ".main-img",                         csv: "Photos" },
-    PHOTO_UPDATE:               { srp: "",                                  csv: "PhotoUpdate" },
-    ADDITIONAL_PHOTOS:          { srp: "",                                  csv: "AdditionalPhotos" },
-    ADDITIONAL_PHOTOS_UPDATE:   { srp: "",                                  csv: "AdditionalPhotosUpdate" },
-    BODY:                       { srp: "",                                  csv: "Body" },
-    DOORS:                      { srp: "",                                  csv: "Doors" },
-    DRIVE:                      { srp: ".text__drivetrain",                 csv: "Drive" },
-    ENGINE:                     { srp: ".text__engine",                     csv: "Engine" },
-    MFG_EXTERIOR_COLOR:         { srp: ".value__exterior .uppercase",       csv: "MFGExteriorColor" },
-    EXTERIOR_COLOR:             { srp: "",                                  csv: "ExteriorColor" },
-    FUEL:                       { srp: "",                                  csv: "Fuel" },
-    INTERIOR_COLOR:             { srp: "",                                  csv: "InteriorColor" },
-    NO_PASSENGERS:              { srp: "",                                  csv: "NoPassengers" },
-    PRICE:                      { srp: ".price__second",                    csv: "Price" },
-    TRIM:                       { srp: ".value__trim",                      csv: "Trim" },
-    VIN:                        { srp: ".value__vin span.uppercase",        csv: "VIN" },
-    KILOMETERS:                 { srp: ".value__mileage span.uppercase",    csv: "Kilometers" },
-    TRANSMISSION:               { srp: "",                                  csv: "Transmission" },
-    DESCRIPTION:                { srp: "",                                  csv: "Description" },
-    OPTIONS:                    { srp: "",                                  csv: "Options" },
-    TYPE:                       { srp: "",                                  csv: "Type" },
-    SUB_TYPE:                   { srp: "",                                  csv: "SubType" },
-    VDP_URL:                    { srp: "",                                  csv: "VDP Url" },
-    AGE:                        { srp: "",                                  csv: "Age" },
-    IS_CGI_PICTURE:             { srp: "",                                  csv: "IsCGIPicture" },
-    IS_VIN_SAVER:               { srp: "",                                  csv: "IsVinSaver" },
-    IS_JUMPSTART:               { srp: "",                                  csv: "IsJumpstart" }
-};
-
-async function getCurrentFieldMap() {
+export async function getCurrentFieldMap() {
     const customFieldMap = {};
-    for (const [key, value] of Object.entries(FIELD_MAP)) {
-        const inputField = document.getElementById(`${key.toLowerCase()}Mapping`);
-        if (inputField && inputField.value.trim()) {
-            customFieldMap[key] = inputField.value.trim();
-        }
-    }
-    return customFieldMap;
-}
-
-async function refreshFieldMapInputs() {
-    const savedFieldMap = await getFieldMapValues();
-    if (savedFieldMap) {
-        for (const [key, value] of Object.entries(savedFieldMap)) {
-            const inputField = document.getElementById(`${key.toLowerCase()}Mapping`);
-            if (inputField) {
-                inputField.value = value;
+    const inputs = document.querySelectorAll('.field-mapping input');
+    
+    console.log('Getting current field map from inputs:', inputs.length, 'inputs found');
+    console.log('Available input fields:', Array.from(inputs).map(input => input.id));
+    
+    if (inputs.length === 0) {
+        console.log('No input fields found, checking saved values...');
+        const savedFieldMap = await getFieldMapValues();
+        if (savedFieldMap) {
+            console.log('Found saved field map:', savedFieldMap);
+            const stockNumberFields = Object.keys(savedFieldMap).filter(key => 
+                key.includes('STOCK') || key.includes('STOCKNUMBER') || key.includes('STOCK_NUMBER')
+            );
+            
+            if (stockNumberFields.length > 0) {
+                const stockNumberField = stockNumberFields[0];
+                console.log('Using saved stock number field:', stockNumberField, '=', savedFieldMap[stockNumberField]);
+                
+                Object.assign(customFieldMap, savedFieldMap);
+                console.log('Final custom field map from saved values:', customFieldMap);
+                return customFieldMap;
             }
         }
     }
+    
+    inputs.forEach(input => {
+        const originalFieldName = input.id.replace('Mapping', '');
+        const fieldName = originalFieldName.toUpperCase();
+        
+        if (input.value.trim()) {
+            customFieldMap[fieldName] = input.value.trim();
+            console.log('Added field mapping:', fieldName, '=', input.value.trim());
+        } else {
+            console.log('Empty field:', fieldName);
+        }
+    });
+    
+    if (!customFieldMap.STOCKNUMBER) {
+        console.error('STOCKNUMBER field is required but not set!');
+        console.log('Available fields:', Object.keys(customFieldMap));
+        alert('Please set the StockNumber field mapping. This field is required for matching.');
+        return null;
+    }
+    
+    console.log('Final custom field map:', customFieldMap);
+    return customFieldMap;
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    await refreshFieldMapInputs();
-});
-
-document.getElementById('match csv data with SRP cards information').addEventListener('click', async (event) => {
-    const csvInput = document.getElementById('csvInput');
-    const hrefInput = document.getElementById('hrefInput');
+export async function refreshFieldMapInputs() {
+    const savedFieldMap = await getFieldMapValues();
+    console.log('Retrieved saved field map:', savedFieldMap);
     
-    if (hrefInput.style.display === 'block') {
-        hrefInput.style.display = 'none';
-    }
-    
-    csvInput.style.display = csvInput.style.display === 'block' ? 'none' : 'block';
-
-    if (csvInput.style.display === 'block') {
-        const fieldMappingsContainer = document.querySelector('.field-mappings');
-        fieldMappingsContainer.innerHTML = '<h3>Vehicle Card Class Names</h3>';
-
-        for (const [key, value] of Object.entries(FIELD_MAP)) {
-            const fieldMapping = document.createElement('div');
-            fieldMapping.className = 'field-mapping';
-            
-            const label = document.createElement('label');
-            label.textContent = `${key}:`;
-            
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.id = `${key.toLowerCase()}Mapping`;
-            input.placeholder = `Current value is '${value.srp}'`;
-            
-            input.addEventListener('change', async () => {
-                const customFieldMap = await getCurrentFieldMap();
-                await saveFieldMapValues(customFieldMap);
-            });
-            
-            fieldMapping.appendChild(label);
-            fieldMapping.appendChild(input);
-            fieldMappingsContainer.appendChild(fieldMapping);
-        }
-
-        await refreshFieldMapInputs();
-    }
-});
-
-document.getElementById('toggleClassNames').addEventListener('click', (event) => {
-    event.preventDefault();
-    const fieldMappings = document.querySelector('.field-mappings');
-    const toggleLink = document.getElementById('toggleClassNames');
-    
-    if (fieldMappings.style.display === 'none') {
-        fieldMappings.style.display = 'block';
-        toggleLink.textContent = 'Hide Vehicle Card Class Names Customization';
-    } else {
-        fieldMappings.style.display = 'none';
-        toggleLink.textContent = 'Edit Vehicle Card Class Names (Optional)';
-    }
-});
-
-document.getElementById('processCSV').addEventListener('click', async () => {
-    const csvData = document.getElementById('csvData').value;
-    if (!csvData.trim()) {
-        alert('Please enter CSV data');
+    if (!savedFieldMap) {
+        console.log('No saved field map found');
         return;
     }
 
-    const customFieldMap = await getCurrentFieldMap();
-    const testType = 'CSV_SRP_DATA_MATCHER';
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-    await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['$scrolling.js', '$data-handler.js']
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    Object.entries(savedFieldMap).forEach(([field, selector]) => {
+        const input = document.getElementById(`${field.toLowerCase()}Mapping`);
+        if (input) {
+            input.value = selector;
+            console.log('Set saved value for', field, ':', selector);
+        } else {
+            console.log('Input not found for field:', field, 'with ID:', `${field.toLowerCase()}Mapping`);
+        }
     });
+}
 
-    chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: callFindUrlsAndModels,
-        args: [testType, csvData, FIELD_MAP, customFieldMap]
-    });
-});
+async function initializeDataHandler() {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['$data-handler.js']
+        });
+    } catch (error) {
+        console.error('Error initializing data handler:', error);
+    }
+}
 
-function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
+export async function callFindUrlsAndModels() {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const csvData = document.getElementById('csvData').value;
+        
+        if (!csvData.trim()) {
+            alert('Please enter CSV data');
+            return;
+        }
+
+        await initializeDataHandler();
+
+        const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: (data) => {
+                return window.extractCSVHeaders(data);
+            },
+            args: [csvData]
+        });
+
+        if (results && results[0] && results[0].result) {
+            const headers = results[0].result;
+            console.log('Extracted headers:', headers);
+
+            const fieldMappingsContainer = document.querySelector('.field-mappings');
+            if (!fieldMappingsContainer) {
+                console.error('Field mappings container not found');
+                return;
+            }
+
+            fieldMappingsContainer.style.display = 'block';
+            fieldMappingsContainer.innerHTML = '<h3>Vehicle Card Class Names</h3>';
+
+            headers.forEach(header => {
+                const fieldMapping = document.createElement('div');
+                fieldMapping.className = 'field-mapping';
+                
+                const label = document.createElement('label');
+                label.textContent = `${header}:`;
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = `${header.toLowerCase().replace(/\s+/g, '_')}Mapping`;
+                input.placeholder = 'Enter CSS selector';
+                
+                if (header === 'StockNumber') {
+                    input.required = true;
+                    input.style.borderColor = '#ff4444';
+                    label.innerHTML = `${header}: <span style="color: #ff4444;">*</span>`;
+                }
+                
+                input.addEventListener('change', async () => {
+                    const customFieldMap = await getCurrentFieldMap();
+                    await saveFieldMapValues(customFieldMap);
+                });
+                
+                fieldMapping.appendChild(label);
+                fieldMapping.appendChild(input);
+                fieldMappingsContainer.appendChild(fieldMapping);
+            });
+
+            await refreshFieldMapInputs();
+
+            const processButton = document.getElementById('processCSV');
+            if (processButton) {
+                processButton.textContent = 'Process CSV';
+                processButton.removeEventListener('click', callFindUrlsAndModels);
+                processButton.addEventListener('click', async () => {
+                    await refreshFieldMapInputs();
+                    
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    
+                    const customFieldMap = await getCurrentFieldMap();
+                    
+                    if (!customFieldMap) {
+                        console.error('Invalid field map, cannot process CSV');
+                        return;
+                    }
+                    
+                    const testType = 'CSV_SRP_DATA_MATCHER';
+
+                    await chrome.scripting.executeScript({
+                        target: { tabId: tab.id },
+                        files: ['$scrolling.js', '$data-handler.js']
+                    });
+
+                    chrome.scripting.executeScript({
+                        target: { tabId: tab.id },
+                        func: processCSVData,
+                        args: [testType, csvData, customFieldMap]
+                    });
+                });
+            }
+        } else {
+            console.error('No headers found in CSV data');
+            alert('No headers found in CSV data. Please check your CSV format.');
+        }
+    } catch (error) {
+        console.error('Error processing CSV:', error);
+        alert('Error processing CSV data. Please try again.');
+    }
+}
+
+function processCSVData(testType, csvData, customFieldMap) {
     let scannedVehicles = 0;
     let result = {};
     let isProcessing = true;
-    let globalStyleElement = null;
 
-    window.fieldMap = fieldMap;
     window.customFieldMap = customFieldMap;
 
     async function safeSendMessage(message) {
@@ -178,26 +222,92 @@ function callFindUrlsAndModels(testType, csvData, fieldMap, customFieldMap) {
 
     async function findUrlsAndModels(testType, csvData) {
         try {
-            scannedVehicles = await window.scrollDownUntilLoadAllVehicles(result, csvData);
+            scannedVehicles = await window.scrollDownUntilLoadAllVehicles(result, csvData, testType);
             
             const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
-            result = await window.$dataHandler(allVehicleCards, csvData, result, testType);
 
-            const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
-            console.log(message);
+            await window.$dataHandler(allVehicleCards, csvData, result, testType);
             
-            await safeSendMessage({
-                type: 'exportToCSV',
-                data: result,
-                testType: testType,
-                siteName: window.location.hostname.replace('www.', '')
-            });
-        } finally {
-            if (globalStyleElement) {
-                globalStyleElement.remove();
+            if (Object.keys(result).length > 0) {
+                
+                chrome.runtime.sendMessage({
+                    type: 'exportToCSV',
+                    data: result,
+                    testType: testType,
+                    siteName: window.location.hostname.replace('www.', '')
+                });
+            } else {
+                console.log('No mismatches found to export');
             }
+        } finally {
             await safeSendMessage({ type: 'stopProcessing' });
             isProcessing = false;
         }
     }
 }
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const matchCsvButton = document.getElementById('match csv data with SRP cards information');
+    if (matchCsvButton) {
+        matchCsvButton.addEventListener('click', async (event) => {
+            event.preventDefault();
+            const csvInput = document.getElementById('csvInput');
+            const hrefInput = document.getElementById('hrefInput');
+            
+            if (hrefInput && hrefInput.style.display === 'block') {
+                hrefInput.style.display = 'none';
+            }
+            
+            if (csvInput.style.display === 'none' || !csvInput.style.display) {
+                csvInput.style.display = 'block';
+            } else {
+                csvInput.style.display = 'none';
+            }
+        });
+    }
+
+    const revealHeaderButton = document.getElementById('revealHeader');
+    if (revealHeaderButton) {
+        revealHeaderButton.addEventListener('click', async (event) => {
+            event.preventDefault();
+            await callFindUrlsAndModels();
+        });
+    }
+
+    const processCSVButton = document.getElementById('processCSV');
+    if (processCSVButton) {
+        processCSVButton.addEventListener('click', async (event) => {
+            event.preventDefault();
+            const csvData = document.getElementById('csvData').value;
+            if (!csvData.trim()) {
+                alert('Please enter CSV data');
+                return;
+            }
+
+            await refreshFieldMapInputs();
+            
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            const customFieldMap = await getCurrentFieldMap();
+            
+            if (!customFieldMap) {
+                console.error('Invalid field map, cannot process CSV');
+                return;
+            }
+
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            const testType = 'CSV_SRP_DATA_MATCHER';
+
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['$scrolling.js', '$data-handler.js']
+            });
+
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: processCSVData,
+                args: [testType, csvData, customFieldMap]
+            });
+        });
+    }
+});

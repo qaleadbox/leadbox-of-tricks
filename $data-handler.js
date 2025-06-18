@@ -12,8 +12,27 @@ window.$dataHandler = async function(allVehicleCards, csvData, result, testType,
             if (!result || Array.isArray(result)) {
                 result = {};
             }
+            
+            const csvHeaders = Object.keys(csvMap[Object.keys(csvMap)[0]] || {});
+            
+            const fieldToCsvMapping = {};
+            Object.keys(window.customFieldMap).forEach(fieldKey => {
+                if (csvHeaders.includes(fieldKey)) {
+                    fieldToCsvMapping[fieldKey] = fieldKey;
+                } else {
+                    const matchingHeader = csvHeaders.find(header => 
+                        header.toLowerCase() === fieldKey.toLowerCase()
+                    );
+                    if (matchingHeader) {
+                        fieldToCsvMapping[fieldKey] = matchingHeader;
+                    } else {
+                        console.warn(`No matching CSV header found for field: ${fieldKey}`);
+                    }
+                }
+            });
+            
             for (const srpVehicle of allVehicleCards) {
-                const stockSelector = window.customFieldMap.STOCK_NUMBER || window.fieldMap.STOCK_NUMBER.srp;
+                const stockSelector = window.customFieldMap.STOCKNUMBER;
                 const srpStockNumber = await getTextFromVehicleCard(srpVehicle, stockSelector);
                 const csvVehicle = csvMap[srpStockNumber];
 
@@ -21,30 +40,28 @@ window.$dataHandler = async function(allVehicleCards, csvData, result, testType,
                     processedVehicles++;
                     let hasMismatches = false;
                     let mismatches = {};
-                    // console.log("_____________________");
+                    //console.log("____________________________________________________________________________________");
 
-                    for (const [map_key, map] of Object.entries(window.fieldMap)) {
-                        const srpSelector = window.customFieldMap[map_key] || map.srp;
-                        const csvKey = map.csv;
+                    for (const [field, selector] of Object.entries(window.customFieldMap)) {
+                        if (!selector) continue;
 
-                        if (!csvKey || !srpSelector) continue;
+                        const srpRaw = await getTextFromVehicleCard(srpVehicle, selector);
+                        const csvHeader = fieldToCsvMapping[field];
+                        const csvRaw = csvHeader ? csvVehicle[csvHeader] : undefined;                        
+                        
+                        const csvNormalizedValue = normalizeValue(field, csvRaw);
+                        const srpNormalizedValue = normalizeValue(field, srpRaw);
+                        //console.log(`${field}, Selector: ${selector}, CSV Header: ${csvHeader}, CSV Normalized: ${csvNormalizedValue}, SRP Normalized: ${srpNormalizedValue}`);
 
-                        const srpRaw = await getTextFromVehicleCard(srpVehicle, srpSelector);
-                        const csvRaw = csvVehicle[csvKey];
-
-                        const csvNormalizedValue = normalizeValue(map_key, csvRaw);
-                        const srpNormalizedValue = normalizeValue(map_key, srpRaw);
-                        // console.log(csvKey+": "+srpSelector+": "+csvNormalizedValue+": "+srpNormalizedValue);
-
-                        if (await isExceptionValue(map_key, csvNormalizedValue, srpNormalizedValue)) {
+                        if (await isExceptionValue(field, csvNormalizedValue, srpNormalizedValue)) {
                             continue;
                         }
 
-                        let matched = srpNormalizedValue === csvNormalizedValue;  
+                        let matched = srpNormalizedValue === csvNormalizedValue;
                         
                         if (!matched) {
                             hasMismatches = true;
-                            mismatches[map_key] = {
+                            mismatches[field] = {
                                 csv: csvNormalizedValue,
                                 srp: srpNormalizedValue
                             };
@@ -185,9 +202,8 @@ async function isExceptionValue(csv_key, csv_value, srp_value) {
     ];
 
     switch (csv_key) {
-        case 'PHOTOS':
-            const isSpinner = srp_value.includes('spinner.gif');
-            return isSpinner;
+        case 'STOCKNUMBER':
+            return true;
         case 'KILOMETERS':
             var hasSRPReturnerVin = srp_value.length === 17;
             if (hasSRPReturnerVin){
@@ -223,14 +239,21 @@ function normalizeValue(key, value) {
         case 'KILOMETERS':
             return normalized.replace(/[km\s,]|\.00000/g, '');
         default:
-            return normalized.trim();
+            if (normalized.includes("-card.jpg")){
+                return normalized.replace("-card.jpg", "");
+            }
+            else if (normalized.includes("-THIRDPARTY.jpg")){
+                return normalized.replace("-THIRDPARTY.jpg", "");
+            }
+            else{
+                return normalized.trim();
+            }
     }
 }
 
 async function getTextFromVehicleCard(vehicleCard, selector) {
     try {
         if (!vehicleCard) return "";
-        
         const vehicleCardElement = vehicleCard.querySelector(selector);
         if (!vehicleCardElement) return "";
         
@@ -247,10 +270,11 @@ async function getTextFromVehicleCard(vehicleCard, selector) {
 }
 
 function handleImageElement(imgElement) {
-    const imgSrc = imgElement.src || "";
-    const imgSrcCardByThirdpartyReplacement = imgSrc.replace("-card.", "-THIRDPARTY.");
-    return imgSrcCardByThirdpartyReplacement || "";
+    const isSpinner = imgElement.src.includes("spinner.gif");
+    const imgSrcCardByThirdpartyReplacement = isSpinner ? imgElement.getAttribute("data-src") || "" : imgElement.src || "";
+    return imgSrcCardByThirdpartyReplacement || "";    
 }
+
 
 function handleTextElement(element) {
     let textSurroundingSpacesTrimmed = element.textContent.trim();
@@ -282,3 +306,35 @@ async function csvParser(csvVehicle) {
     }
     return stockDataMap;
 }
+
+window.extractCSVHeaders = function(csvData) {
+    
+    if (!csvData || typeof csvData !== 'string') {
+        console.warn("Invalid CSV data");
+        return [];
+    }
+
+    const lines = csvData.split('\n');
+    
+    if (lines.length === 0) {
+        console.warn("No lines found in CSV");
+        return [];
+    }
+
+    const firstLine = lines[0];
+
+    const delimiters = [',', '|', '\t'];
+    let bestHeaders = [];
+    let maxFields = 0;
+
+    for (const delimiter of delimiters) {
+        const headers = firstLine.split(delimiter).map(header => header.trim()).filter(Boolean);
+        if (headers.length > maxFields) {
+            maxFields = headers.length;
+            bestHeaders = headers;
+        }
+    }    
+    return bestHeaders;
+};
+
+globalThis.extractCSVHeaders = window.extractCSVHeaders;

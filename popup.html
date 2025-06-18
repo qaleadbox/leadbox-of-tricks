@@ -564,14 +564,16 @@ Steps:
 
   <button id="match csv data with SRP cards information">Validate SRP Cards with CSV Data <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
   <div id="csvInput" style="display: none;">
-    <div class="class-names-toggle">
-      <a href="#" id="toggleClassNames">Edit Vehicle Card Class Names (Optional)</a>
-    </div>
     <div class="field-mappings" style="display: none;">
+      <h3>Vehicle Card Class Names</h3>
+      <!-- Field mappings will be dynamically added here -->
     </div>
     <h3>CSV Data <span class="required-asterisk">*</span></h3>
     <textarea id="csvData" placeholder="Paste CSV data here..."></textarea>
-    <button id="processCSV">Process CSV</button>
+    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+      <button id="revealHeader" class="action-button">Review Header</button>
+      <button id="processCSV" class="action-button">Process CSV</button>
+    </div>
   </div>
   <script type="module" src="csv-srp-data-matcher.js"></script>
 
