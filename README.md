@@ -20,7 +20,7 @@ A powerful Chrome extension designed to enhance LeadBox functionality with tools
 
 ### Installing the extension 
 
-[Installation Guide](https://i.gyazo.com/4c47868b5ad910bb0403d626b518b906.gif)
+Installation Guide > https://i.gyazo.com/4c47868b5ad910bb0403d626b518b906.gif
 
 
 1. Open Chrome Browser.
@@ -54,7 +54,7 @@ Validate SRP cards information against CSV data.
 ## Feature003: HREF Extraction
 Extract links from sitemap HTML structure for spreadsheet use.
 
-[Module003 Guide](https://i.gyazo.com/01bcde274738404aeabef2402b78b0fe.gif)
+Module003 Guide > https://i.gyazo.com/01bcde274738404aeabef2402b78b0fe.gif
 
 1. Access the SiteMap
 2. Inspect the elements list
