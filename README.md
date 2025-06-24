@@ -20,14 +20,14 @@ A powerful Chrome extension designed to enhance LeadBox functionality with tools
 
 ### Installing the extension 
 
-[![Installation Guide](https://gyazo.com/4c47868b5ad910bb0403d626b518b906)](https://gyazo.com/4c47868b5ad910bb0403d626b518b906)
+[Installation Guide](https://i.gyazo.com/4c47868b5ad910bb0403d626b518b906.gif)
 
 
 1. Open Chrome Browser.
 2. Go to `chrome://extensions/`.
 3. Enable **Developer Mode** (top right).
-4. Clone or download the repository: https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension.
-5. Click [Load unpacked](https://gyazo.com/7a6fa8e891eb286d8b264c1d905a55a5)
+4. Download AND extract the last version [Here](https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension/releases)
+5. Click [Load unpacked](https://i.gyazo.com/7a6fa8e891eb286d8b264c1d905a55a5.png)
 6. Select the project folder to import the extension.
 
 # How to use
@@ -54,7 +54,7 @@ Validate SRP cards information against CSV data.
 ## Feature003: HREF Extraction
 Extract links from sitemap HTML structure for spreadsheet use.
 
-[![Module003 Guide](https://gyazo.com/01bcde274738404aeabef2402b78b0fe)](https://gyazo.com/01bcde274738404aeabef2402b78b0fe)
+[Module003 Guide](https://i.gyazo.com/01bcde274738404aeabef2402b78b0fe.gif)
 
 1. Access the SiteMap
 2. Inspect the elements list
@@ -172,7 +172,7 @@ root/
 * If OCR API was down, the cards should have a new tag "API is offline"
 * Start a process, reopen popup, it will be not locked(loading)
 * When any result is found, the icon keeps spinning
-* Remove all hard code to implement full autodetect approach, occurrances on $data-handler.js > (e.g. "STOCKNUMBER", "KILOMETERS", "VIN", "PRICE", "CONDITION", "PRICE", etc)
+* Remove all hard code to implement full autodetect approach, occurrances on $data-handler.js > (e.g. "STOCKNUMBER", "KILOMETERS", "VIN", etc)
 
 # Suggestions
 
@@ -182,7 +182,11 @@ root/
 * For check coming soon images, change the stockNumber column to the first on the output CSV file
 * for comingsoonimagessize saved locally, save the image id instead the size, or both.
 * OCR API is commonly down, should be good to test OCR locally
-* "No matching CSV header found for field:" is shwoing on countychevrolet
+* "No matching CSV header found for field:" is logging on countychevrolet
+* Remove the Field_mapleftover implementation from coming soon images module
+* Add a dashboard to user choose options (e.g. debugMode)
+* Add to the dashboard the exceptions and the normalization keys
+* OCR is false negative on some sites
 
 # Goal
 
