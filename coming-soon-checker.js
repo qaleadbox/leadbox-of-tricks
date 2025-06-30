@@ -1,42 +1,3 @@
-import { checkImageWithOCR } from './image-checker/ocr-image-checker.js';
-
-const FIELD_MAP = {
-    STOCK_NUMBER:               { srp: ".stock_number",                     csv: "StockNumber" },
-    DEALER_ID:                  { srp: "",                                  csv: "Dealer Id" },
-    CONDITION:                  { srp: ".value__status",                    csv: "Condition" },
-    LAST_UPDATE:                { srp: "",                                  csv: "LastUpdate" },
-    YEAR:                       { srp: ".value__year",                      csv: "Year" },
-    MAKE:                       { srp: ".value__make",                      csv: "Make" },
-    MODEL:                      { srp: ".value__model",                     csv: "Model" },
-    PHOTOS:                     { srp: ".main-img",                         csv: "Photos" },
-    PHOTO_UPDATE:               { srp: "",                                  csv: "PhotoUpdate" },
-    ADDITIONAL_PHOTOS:          { srp: "",                                  csv: "AdditionalPhotos" },
-    ADDITIONAL_PHOTOS_UPDATE:   { srp: "",                                  csv: "AdditionalPhotosUpdate" },
-    BODY:                       { srp: "",                                  csv: "Body" },
-    DOORS:                      { srp: "",                                  csv: "Doors" },
-    DRIVE:                      { srp: ".text__drivetrain",                 csv: "Drive" },
-    ENGINE:                     { srp: ".text__engine",                     csv: "Engine" },
-    MFG_EXTERIOR_COLOR:         { srp: ".value__exterior .uppercase",       csv: "MFGExteriorColor" },
-    EXTERIOR_COLOR:             { srp: "",                                  csv: "ExteriorColor" },
-    FUEL:                       { srp: "",                                  csv: "Fuel" },
-    INTERIOR_COLOR:             { srp: "",                                  csv: "InteriorColor" },
-    NO_PASSENGERS:              { srp: "",                                  csv: "NoPassengers" },
-    PRICE:                      { srp: ".price__second",                    csv: "Price" },
-    TRIM:                       { srp: ".value__trim",                      csv: "Trim" },
-    VIN:                        { srp: ".value__vin span.uppercase",        csv: "VIN" },
-    KILOMETERS:                 { srp: ".value__mileage span.uppercase",    csv: "Kilometers" },
-    TRANSMISSION:               { srp: "",                                  csv: "Transmission" },
-    DESCRIPTION:                { srp: "",                                  csv: "Description" },
-    OPTIONS:                    { srp: "",                                  csv: "Options" },
-    TYPE:                       { srp: "",                                  csv: "Type" },
-    SUB_TYPE:                   { srp: "",                                  csv: "SubType" },
-    VDP_URL:                    { srp: "",                                  csv: "VDP Url" },
-    AGE:                        { srp: "",                                  csv: "Age" },
-    IS_CGI_PICTURE:             { srp: "",                                  csv: "IsCGIPicture" },
-    IS_VIN_SAVER:               { srp: "",                                  csv: "IsVinSaver" },
-    IS_JUMPSTART:               { srp: "",                                  csv: "IsJumpstart" }
-};
-
 function cleanupStyles() {
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
         chrome.scripting.executeScript({
@@ -91,7 +52,7 @@ document.getElementById('check missing images').addEventListener('click', async 
     chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: callFindUrlsAndModels,
-        args: [testType, FIELD_MAP]
+        args: [testType]
     });
 });
 
@@ -115,15 +76,12 @@ chrome.storage.local.get(['ocrKey'], (result) => {
     }
 });
 
-function callFindUrlsAndModels(testType, fieldMap) {
+function callFindUrlsAndModels(testType) {
     let scannedVehicles = 0;
     let result = [];
     let lastProcessingTime = 0;
     let globalStyleElement = null;
     let isProcessing = true;
-
-    window.fieldMap = fieldMap;
-    window.customFieldMap = {};
 
     function addCleanupButton() {
         const button = document.createElement('button');
