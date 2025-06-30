@@ -1,4 +1,6 @@
 window.$dataHandler = async function(allVehicleCards, csvData, result, testType, highlightCard) {
+    const debuggingMode = true;
+
     let csvMap = {};
     if (csvData) {
         csvMap = await csvParser(csvData);
@@ -40,7 +42,10 @@ window.$dataHandler = async function(allVehicleCards, csvData, result, testType,
                     processedVehicles++;
                     let hasMismatches = false;
                     let mismatches = {};
-                    //console.log("____________________________________________________________________________________");
+
+                    if(debuggingMode){
+                        console.log("____________________________________________________________________________________");
+                    }
 
                     for (const [field, selector] of Object.entries(window.customFieldMap)) {
                         if (!selector) continue;
@@ -49,9 +54,12 @@ window.$dataHandler = async function(allVehicleCards, csvData, result, testType,
                         const csvHeader = fieldToCsvMapping[field];
                         const csvRaw = csvHeader ? csvVehicle[csvHeader] : undefined;                        
                         
-                        const csvNormalizedValue = normalizeValue(field, csvRaw);
-                        const srpNormalizedValue = normalizeValue(field, srpRaw);
-                        //console.log(`${field}, Selector: ${selector}, CSV Header: ${csvHeader}, CSV Normalized: ${csvNormalizedValue}, SRP Normalized: ${srpNormalizedValue}`);
+                        const csvNormalizedValue = normalizeValue(csvRaw);
+                        const srpNormalizedValue = normalizeValue(srpRaw);
+
+                        if(debuggingMode){
+                            console.log(`${field}, Selector: ${selector}, CSV Header: ${csvHeader}, CSV Normalized: ${csvNormalizedValue}, SRP Normalized: ${srpNormalizedValue}`);
+                        }
 
                         if (await isExceptionValue(field, csvNormalizedValue, srpNormalizedValue)) {
                             continue;
@@ -191,64 +199,62 @@ function isBetterPhotoImage(imageUrl) {
 }
 
 async function isExceptionValue(csv_key, csv_value, srp_value) {
-    if (!srp_value && !csv_value) return true;
+    if (!csv_value && !srp_value) return true;
 
-    let anyValue = "*.*";
+    const ANY = "*.*";
 
-    let mismatcheExceptions = [
-        { csv: [anyValue], srp: [""] },
-        { csv: ["0"], srp: ["–"] },
-        { csv: [""], srp: ["contactus"] }
-    ];
-
-    switch (csv_key) {
-        case 'STOCKNUMBER':
-            return true;
-        case 'KILOMETERS':
-            var hasSRPReturnerVin = srp_value.length === 17;
-            if (hasSRPReturnerVin){
-                return true;
-            } break;
-        case 'VIN':
-            var hasSRPReturnerVin = srp_value.length === 17;
-            if (!hasSRPReturnerVin){
-                return true;
-            } break;
-    }
-
-    for (const exception of mismatcheExceptions) {
-        if (exception.srp.includes(srp_value) &&
-            (exception.csv.includes(csv_value) || exception.csv.includes(anyValue))) {
+    const globalExceptionRules = [{ type: "csvAny_srpEmpty", csv: [ANY], srp: [""] },
+                            { type: "csvZero_srpDash", csv: ["0"], srp: ["–"] },
+                            { type: "csvEmpty_srpContactUs", csv: [""], srp: ["contactus"] },
+                            { type: "csvEmpty_srpAnyValue", csv: [""], srp: [ANY] }]
+    
+    for (const rule of globalExceptionRules) {
+        const csvMatch = rule.csv.includes(csv_value) || rule.csv.includes(ANY);
+        const srpMatch = rule.srp.includes(srp_value) || rule.srp.includes(ANY);
+        if (csvMatch && srpMatch) {
             return true;
         }
+    }
+    const isVIN = /^[A-HJ-NPR-Z0-9]{17}$/i.test(srp_value || '');
+
+    switch (csv_key) {
+        case "VIN": {
+            if (!isVIN) return true;
+            break;
+        }
+
+        case "KILOMETERS": {                
+            if (isVIN) return true;
+            break;
+        }
+
+        case 'STOCKNUMBER':
+            return true;
     }
     return false;
 }
 
-function normalizeValue(key, value) {
+function normalizeValue(value) {
     if (!value) return '';
 
-    let normalized = value.toString();
+    // check if this will not mismatch links
+    let normalized = value.toString().toLowerCase();
 
-    switch (key){
-        case 'CONDITION':
-            return normalized.toLowerCase();
-        case 'PRICE':
-            normalized = normalized.toLowerCase();
-            return normalized.replace(/[$,]/g, '');
-        case 'KILOMETERS':
-            return normalized.replace(/[km\s,]|\.00000/g, '');
-        default:
-            if (normalized.includes("-card.jpg")){
-                return normalized.replace("-card.jpg", "");
-            }
-            else if (normalized.includes("-THIRDPARTY.jpg")){
-                return normalized.replace("-THIRDPARTY.jpg", "");
-            }
-            else{
-                return normalized.trim();
-            }
+    const globalReplacers = [
+        [/\$/g, ''],
+        [/,/g, ''],
+        [/km/gi, ''],
+        [/\s/g, ''],
+        [/\.00000/g, ''],
+        [/-card\.jpg/g, ''],
+        [/-thirdparty\.jpg/g, '']
+    ];
+
+    for (const [pattern, replacement] of globalReplacers) {
+        normalized = normalized.replace(pattern, replacement);
     }
+
+    return normalized.trim();
 }
 
 async function getTextFromVehicleCard(vehicleCard, selector) {

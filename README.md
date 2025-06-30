@@ -167,12 +167,13 @@ root/
 
 # Known Issues
 
-* The scroll does not follow the currently processing card;
-   * Additionally, on paginated sites, the processing queue functions correctly, but the next page loads too early, making it difficult to locate the currently processing card.
-* If OCR API was down, the cards should have a new tag "API is offline"
-* Start a process, reopen popup, it will be not locked(loading)
-* When any result is found, the icon keeps spinning
-* Remove all hard code to implement full autodetect approach, occurrances on $data-handler.js > (e.g. "STOCKNUMBER", "KILOMETERS", "VIN", etc)
+| Severity      | Description        |
+|--------------------|---------------|
+| HIGH | If pop up hiddes before the process finish, causes the reports not be generated |
+| MEDIUM | If OCR API was down, the cards should have a new tag "API is offline" |
+| MEDIUM | Start a process, reopen popup, it will be not locked(loading) |
+| MEDIUM | When any result is found, the icon keeps spinning|
+| MEDIUM | Remove all hard code to implement full autodetect approach, occurrances on $data-handler.js > (e.g. "STOCKNUMBER", "KILOMETERS", "VIN", etc) |
 
 # Suggestions
 
@@ -186,7 +187,8 @@ root/
 * Remove the Field_mapleftover implementation from coming soon images module
 * Add a dashboard to user choose options (e.g. debugMode)
 * Add to the dashboard the exceptions and the normalization keys
-* OCR is false negative on some sites
+* OCR is false negative on some sites - case the "coming soon" text has a not so readble font
+* Add a stop button to break the checking while it is processing
 
 # Goal
 
