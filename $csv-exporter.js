@@ -62,5 +62,41 @@ export function exportToCSVFile(data, testType, siteName) {
             URL.revokeObjectURL(url);
             break;
         }
+        
+        case "SMALL_IMAGE_DETECTOR": {
+            if (!data || data.length === 0) {
+                alert('No data to export!');
+                return;
+            }
+    
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
+            const filename = `${siteName}_${testType.toUpperCase()}_${timestamp}.csv`;
+    
+            const headers = ['Stock Number', 'Model', 'Image Size (KB)', 'Timestamp'];
+            const rows = data.map(item => [
+                item.stockNumber, 
+                item.model, 
+                typeof item.imageSize === 'number' ? item.imageSize.toFixed(2) : item.imageSize, 
+                item.timestamp
+            ]);
+    
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(value => `"${value}"`).join(','))
+            ].join('\n');
+    
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+    
+            link.href = url;
+            link.download = `${filename}.csv`;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            break;
+        }
     }    
 }

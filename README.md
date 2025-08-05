@@ -42,7 +42,17 @@ Check for "coming soon" images on SRPs.
    - Enter the key in the popup
 4. The extension will scan all images and identify "coming soon" ones
 
-## Feature002: CSV Data Matching
+## Feature002: Check Small Images
+Check for images that are too small (below minimum dimensions or file size).
+
+1. Navigate to any SRP page
+2. Click "Scan for Small Images" button
+3. The extension will scan all images and identify those that are:
+   - Below 300x200 pixels in dimensions
+   - Below 10KB in file size
+4. Small images will be highlighted with a red border and "SMALL IMAGE" label
+
+## Feature003: CSV Data Matching
 Validate SRP cards information against CSV data.
 
 1. Navigate to any SRP page
@@ -51,7 +61,7 @@ Validate SRP cards information against CSV data.
 4. Paste the data in the popup
 5. The extension will compare the data and show matches/mismatches
 
-## Feature003: HREF Extraction
+## Feature004: HREF Extraction
 Extract links from sitemap HTML structure for spreadsheet use.
 
 Module003 Guide > https://i.gyazo.com/01bcde274738404aeabef2402b78b0fe.gif
@@ -61,7 +71,7 @@ Module003 Guide > https://i.gyazo.com/01bcde274738404aeabef2402b78b0fe.gif
 3. Copy the ul element with li inside
 4. Paste here (should follow this structure):
 
-## Feature004: LeadBox Admin Printer
+## Feature005: LeadBox Admin Printer
 Automatically adds printer icons to leads list in the admin panel.
 
 Working URLs:
@@ -85,6 +95,7 @@ root/
 ├── image-checker/
 │   ├── ocr-image-checker.js                        # [SCRIPT] Space-OCR-API Integration
 │   └── openai-image-checker.js                     # [SCRIPT] OpenAI-API Integration
+├── $card-highlighter.js                            # [SHARED SCRIPT] Feature's vehicle cards highligher
 ├── $csv-exporter.js                                # [SHARED SCRIPT] Feature's CSV exporter
 ├── $data-handler.js                                # [SHARED SCRIPT] Feature's data handler
 ├── $scrolling.js                                   # [SHARED SCRIPT] Feature's scroller
@@ -96,6 +107,7 @@ root/
 ├── manifest.json                                   # [MANIFEST] Default extension file
 ├── popup.html                                      # [POPUP] Default extension file
 ├── popup.js                                        # [SCRIPT] Popup actions
+├── small-images-checker.js                         # [MAIN SCRIPT] Small Images checker
 ├── ul-link-extractor.js                            # [MAIN SCRIPT] Links extractor from Unordered Lists <ul> component
 └── version.js                                      # [SCRIPT] Version handler
 ```
@@ -129,20 +141,21 @@ root/
 
 | Action items       | Status        |
 |--------------------|---------------|
-| Local Extension                                                   | done |
-| 100% Frontend (no backend, no JSON)                               | done |
-| Research how the infinite scroll works                            | done |
-| Saves the result to a CSV document                                | done |
-| View More button is a challenge                                   | done |
-| Implement the pagination by numbers                               | done |
-| Make a list of what types of data the application will capture    | done |
-| Compare .csv file with what's shown in the SRP                    | done |
-| Convert HREF from LI elements to paste on spreadsheet cells       | done |
-| Check if coming soon images have the same class as regular images | pending |
-| Use AI for the comparison                                         | pending |
+| Local Extension                                                                                                 | done |
+| 100% Frontend (no backend, no JSON)                                                                             | done |
+| Research how the infinite scroll works                                                                          | done |
+| Saves the result to a CSV document                                                                              | done |
+| View More button is a challenge                                                                                 | done |
+| Implement the pagination by numbers                                                                             | done |
+| Make a list of what types of data the application will capture                                                  | done |
+| Compare .csv file with what's shown in the SRP                                                                  | done |
+| Convert HREF from LI elements to paste on spreadsheet cells                                                     | done |
+| Check if coming soon images have the same class as regular images                                               | pending |
+| AI to detect Gray images(AMOS) OR if the images center are gray(CHRIS) OR detect images below 10KB(ROBINSON)    | done |
 
 ## Version History
 
+- v3.1: Added small images detection feature (detects images below 10KB)
 - v3.0: CSV keys are reconixed dynamically after CSV data are inserted & Hotfix image links normalization
 - v2.9: Hotfix all result values are normalized
 - v2.8: Naming convention to files and buttons
@@ -174,6 +187,9 @@ root/
 | MEDIUM | Start a process, reopen popup, it will be not locked(loading) |
 | MEDIUM | When any result is found, the icon keeps spinning|
 | MEDIUM | Remove all hard code to implement full autodetect approach, occurrances on $data-handler.js > (e.g. "STOCKNUMBER", "KILOMETERS", "VIN", etc) |
+| MEDIUM | Report file sometimes is being duplicated
+| MEDIUM | Detect small images has not any loading feedback POPUP and SPINNER ICON
+| LOW | Small images, if was runned more than once without clean the highlights the vehicle cards will became all red highlighed. THIS IS ONLY VISUAL. DO NOT IMPACTS FUNCTIONALITY.
 
 # Suggestions
 
@@ -189,6 +205,9 @@ root/
 * Add to the dashboard the exceptions and the normalization keys
 * OCR is false negative on some sites - case the "coming soon" text has a not so readble font
 * Add a stop button to break the checking while it is processing
+* Elaborate test scenarios to regression
+* Build a little test automation (embedded on the extension), tu run after every new code change
+* Small images, currently it is reporting below 10KB, desired is 10KB be the minimum but user choose a customized value
 
 # Goal
 

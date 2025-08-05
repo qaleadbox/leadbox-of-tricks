@@ -522,6 +522,10 @@
           <div class="feature-description">Scan and identify coming soon images in the current page.</div>
         </li>
         <li>
+          <div class="feature-title">Small Images Checker</div>
+          <div class="feature-description">Scan and identify images that are too small (below minimum dimensions or file size).</div>
+        </li>
+        <li>
           <div class="feature-title">CSV Data Matcher</div>
           <div class="feature-description">Match CSV data with SRP cards information.</div>
         </li>
@@ -561,6 +565,9 @@ Steps:
     <button id="saveOcrKey">Save OCR Key</button>
   </div>
   <script type="module" src="coming-soon-checker.js"></script>
+
+  <button id="check small images">Scan for Small Images <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
+  <script type="module" src="small-images-checker.js"></script>
 
   <button id="match csv data with SRP cards information">Validate SRP Cards with CSV Data <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
   <div id="csvInput" style="display: none;">

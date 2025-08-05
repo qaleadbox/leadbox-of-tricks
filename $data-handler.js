@@ -190,6 +190,77 @@ window.$dataHandler = async function(allVehicleCards, csvData, result, testType,
                 }
             }
             break;
+
+        case "SMALL_IMAGE_DETECTOR":
+            if (!highlightCard) {
+                console.error('highlightCard function is required for SMALL_IMAGE_DETECTOR');
+                return allVehicleCards.length;
+            }
+
+            for (const element of allVehicleCards) {
+                if (element.classList.contains('processed-card')) continue;
+
+                const modelElement = element.querySelector('.value__model');
+                const trimElement = element.querySelector('.value__trim');
+                const stockNumberElement = element.querySelector('.stock_label') || element.querySelector('.stock_number') || element.querySelector('.value__stock');
+                const imageUrlElement = element.querySelector('.main-img');
+                const sourceElement = element.querySelector('source');
+
+                try {
+                    if (modelElement && stockNumberElement && (imageUrlElement || sourceElement)) {
+                        const model = modelElement.textContent.trim();
+                        const trim = trimElement ? trimElement.textContent.trim() : '';
+                        
+                        let stockNumber = '';
+                        if (stockNumberElement.classList.contains('stock_label')) {
+                            const stockNumberText = stockNumberElement.textContent.trim();
+                            stockNumber = stockNumberText.split('Stock#:')[1]?.trim() || '';
+                        } else {
+                            stockNumber = stockNumberElement.textContent.trim();
+                        }
+
+                        let imageUrl = '';
+                        if (imageUrlElement?.dataset.src) {
+                            imageUrl = imageUrlElement.dataset.src;
+                        } else if (sourceElement?.srcset) {
+                            imageUrl = sourceElement.srcset;
+                        } else if (imageUrlElement?.src) {
+                            imageUrl = imageUrlElement.src;
+                        }
+
+                        if (imageUrl && stockNumber) {
+                            element.classList.remove('waiting-card');
+                            
+                            await highlightCard(element, async () => {
+                                return await window.isSmallImageByUrl(imageUrl);
+                            });
+                        } else {
+                            console.log('Missing required data:', {
+                                hasImageUrl: !!imageUrl,
+                                hasStockNumber: !!stockNumber
+                            });
+                            element.classList.remove('waiting-card');
+                            element.classList.add('processed-card');
+                            element.setAttribute('data-processing-info', 'Missing data');
+                        }
+                    } else {
+                        console.log('Missing required elements:', {
+                            hasModel: !!modelElement,
+                            hasStockNumber: !!stockNumberElement,
+                            hasImage: !!(imageUrlElement || sourceElement)
+                        });
+                        element.classList.remove('waiting-card');
+                        element.classList.add('processed-card');
+                        element.setAttribute('data-processing-info', 'Missing elements');
+                    }
+                } catch (error) {
+                    console.error("An error occurred while processing elements:", error);
+                    element.classList.remove('waiting-card');
+                    element.classList.add('processed-card');
+                    element.setAttribute('data-processing-info', 'Error processing');
+                }
+            }
+            break;
     }
     return allVehicleCards.length;
 }
