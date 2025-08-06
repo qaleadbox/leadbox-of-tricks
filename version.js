@@ -23,7 +23,7 @@ function extractVersionNumber(tagName) {
 
 async function checkForUpdates() {
   try {
-    const response = await fetch('https://api.github.com/repos/robinsonmourao/Inventory-Crawl-Chrome-Extension/releases');
+    const response = await fetch('https://api.github.com/repos/qaleadbox/leadbox-of-tricks/releases');
     const releases = await response.json();
     
     if (releases && releases.length > 0) {
