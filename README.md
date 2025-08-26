@@ -155,6 +155,7 @@ root/
 
 ## Version History
 
+- v3.2: Implemented checking images by OpenAI API
 - v3.1: Added small images detection feature (detects images below 10KB)
 - v3.0: CSV keys are reconixed dynamically after CSV data are inserted & Hotfix image links normalization
 - v2.9: Hotfix all result values are normalized

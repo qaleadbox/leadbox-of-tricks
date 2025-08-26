@@ -62,7 +62,6 @@ function updateProcessingInfo(element, currentTime, lastTime, isProcessed = fals
     element.setAttribute('data-processing-info', timeInfo);
 }
 
-
 function addCleanupButton() {
     const button = document.createElement('button');
     button.id = 'cleanup-highlights-button';
@@ -90,25 +89,18 @@ function addCleanupButton() {
 }
 
 function cleanupStyles() {
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-                const styleElement = document.querySelector('style[data-processing-styles]');
-                if (styleElement) {
-                    styleElement.remove();
-                }
-                document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').forEach(card => {
-                    card.classList.remove('processed-card', 'coming-soon-card', 'small-image-card', 'processing-card', 'waiting-card');
-                    card.removeAttribute('data-processing-info');
-                });
-                const cleanupButton = document.querySelector('#cleanup-highlights-button');
-                if (cleanupButton) {
-                    cleanupButton.remove();
-                }
-            }
-        });
+    const styleElement = document.querySelector('style[data-processing-styles]');
+    if (styleElement) {
+        styleElement.remove();
+    }
+    document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').forEach(card => {
+        card.classList.remove('processed-card', 'coming-soon-card', 'small-image-card', 'processing-card', 'waiting-card');
+        card.removeAttribute('data-processing-info');
     });
+    const cleanupButton = document.querySelector('#cleanup-highlights-button');
+    if (cleanupButton) {
+        cleanupButton.remove();
+    }
 }
 
 function addProcessingStyles(globalStyleElement) {

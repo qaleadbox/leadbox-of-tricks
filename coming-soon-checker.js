@@ -56,13 +56,11 @@ async function startImageScanning() {
         files: ['$card-highlighter.js', '$scrolling.js', '$data-handler.js']
     });
 
-    chrome.scripting.executeScript({
+    await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: callFindUrlsAndModels,
         args: [testType]
     });
-
-    cleanupStyles();
 }
 
 document.getElementById('startScanning').addEventListener('click', async () => {
@@ -228,7 +226,10 @@ function callFindUrlsAndModels(testType) {
         return false;
     };
     
-    addProcessingStyles(globalStyleElement);
+    // Ensure functions are available before calling them
+    if (typeof addProcessingStyles === 'function') {
+        addProcessingStyles(globalStyleElement);
+    }
 
     document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').forEach(card => {
         card.classList.remove('processed-card', 'coming-soon-card', 'processing-card');
@@ -254,7 +255,12 @@ function callFindUrlsAndModels(testType) {
                 siteName: window.location.hostname.replace('www.', '')
             });
             
-            addCleanupButton();
+            // Ensure addCleanupButton is available before calling it
+            if (typeof addCleanupButton === 'function') {
+                addCleanupButton();
+            } else {
+                console.warn('addCleanupButton function not available');
+            }
         } finally {
             if (observer) {
                 observer.disconnect();
