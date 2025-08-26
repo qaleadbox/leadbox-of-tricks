@@ -1,5 +1,54 @@
 document.getElementById('check small images').addEventListener('click', async (event) => {
+    const smallImageSettingsDiv = document.getElementById('smallImageSettingsDiv');
     
+    if (smallImageSettingsDiv.style.display === 'none') {
+        smallImageSettingsDiv.style.display = 'block';
+        return;
+    } else {
+        smallImageSettingsDiv.style.display = 'none';
+        return;
+    }
+});
+
+document.getElementById('startSmallImageScanning').addEventListener('click', async () => {
+    await startSmallImageScanning();
+});
+
+async function loadSiteThreshold() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const siteName = tab.url ? new URL(tab.url).hostname.replace('www.', '') : '';
+    
+    const result = await chrome.storage.local.get(['siteImageThresholds']);
+    const siteThresholds = result.siteImageThresholds || {};
+    
+    if (siteThresholds[siteName]) {
+        document.getElementById('imageSizeThreshold').value = siteThresholds[siteName];
+    } else {
+        document.getElementById('imageSizeThreshold').value = 10;
+    }
+    
+    const siteLabel = document.getElementById('siteLabel');
+    if (siteLabel) {
+        siteLabel.textContent = `Image Size Threshold for ${siteName}:`;
+    }
+}
+
+document.getElementById('imageSizeThreshold').addEventListener('change', async (event) => {
+    const threshold = parseInt(event.target.value) || 10;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const siteName = tab.url ? new URL(tab.url).hostname.replace('www.', '') : '';
+    
+    const result = await chrome.storage.local.get(['siteImageThresholds']);
+    const siteThresholds = result.siteImageThresholds || {};
+    siteThresholds[siteName] = threshold;
+    
+    await chrome.storage.local.set({ siteImageThresholds: siteThresholds });
+    console.log(`Saved threshold ${threshold}KB for site: ${siteName}`);
+});
+
+loadSiteThreshold();
+
+async function startSmallImageScanning() {
     chrome.runtime.sendMessage({ type: 'startProcessing' });
     
     chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
@@ -33,10 +82,12 @@ document.getElementById('check small images').addEventListener('click', async (e
                 files: ['$card-highlighter.js', '$scrolling.js', '$data-handler.js']
             });
 
+            const threshold = parseInt(document.getElementById('imageSizeThreshold').value) || 10;
+            
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: callFindSmallImages,
-                args: [testType]
+                args: [testType, threshold]
             });
         } catch (error) {
             console.error('Error executing small image detection:', error);
@@ -44,11 +95,11 @@ document.getElementById('check small images').addEventListener('click', async (e
             chrome.runtime.sendMessage({ type: 'stopProcessing' });
         }
     });
-});
+}
 
 const testType = 'SMALL_IMAGE_DETECTOR';
 
-function callFindSmallImages(testType) {
+function callFindSmallImages(testType, threshold = 10) {
     let scannedVehicles = 0;
     let result = [];
     let lastProcessingTime = 0;
@@ -66,7 +117,7 @@ function callFindSmallImages(testType) {
                     const contentLength = response.headers.get('content-length');
                     if (contentLength) {
                         const fileSizeKB = parseInt(contentLength) / 1024;
-                        const isSmall = fileSizeKB < 10;
+                        const isSmall = fileSizeKB < threshold;
                         resolve({ isSmall, fileSizeKB });
                     } else {
                         resolve({ isSmall: false, fileSizeKB: 0 });
