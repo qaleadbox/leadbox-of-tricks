@@ -95,11 +95,12 @@ function callFindSmallImages(testType) {
     }
 
     // PENDING TO MERGED TO $card-highlighter.js
-    async function highlightCard(element, isSmallImageCallback) {
+    async function highlightCard(element) {
         const currentTime = Date.now();
         
         try {
-            const { isSmall, fileSizeKB } = await isSmallImageCallback();
+            const imageUrl = element.querySelector('img')?.src || '';
+            const { isSmall, fileSizeKB } = await window.isSmallImageByUrl(imageUrl);
             
             if (isSmall) {
                 element.classList.add('small-image-card');
@@ -129,7 +130,7 @@ function callFindSmallImages(testType) {
             
             element.classList.remove('processing-card', 'waiting-card');
             element.classList.add('processed-card');
-            updateProcessingInfo(element, currentTime, lastProcessingTime, true, testType);
+            updateProcessingInfo(element, currentTime, lastProcessingTime, isProcessing, isSmall, testType);
             
             scannedVehicles++;
             lastProcessingTime = currentTime;

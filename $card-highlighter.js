@@ -24,10 +24,10 @@ window.highlightCard = async function(element, processingFunction, lastProcessin
         
         if (result) {
             element.classList.add('coming-soon-card');
-            updateProcessingInfo(element, processingTime, lastProcessingTime, true, true);
+            updateProcessingInfo(element, processingTime, lastProcessingTime, true, true, 'COMING_SOON_DETECTOR');
         } else {
             element.classList.add('processed-card');
-            updateProcessingInfo(element, processingTime, lastProcessingTime, true);
+            updateProcessingInfo(element, processingTime, lastProcessingTime, true, false, 'COMING_SOON_DETECTOR');
         }
         
         return result;
@@ -40,13 +40,14 @@ window.highlightCard = async function(element, processingFunction, lastProcessin
     }
 };
 
-function updateProcessingInfo(element, currentTime, lastTime, isProcessed = false, testType = '') {
+function updateProcessingInfo(element, currentTime, lastTime, isProcessed = false, issueFound, testType) {
     let timeInfo;
+    console.log(currentTime);
 
     if (isProcessed) {
-        if (testType === 'COMING_SOON_DETECTOR') {
+        if ((testType === 'COMING_SOON_DETECTOR') && (issueFound)) {
             timeInfo = `Coming Soon ${currentTime.toFixed(2)}s`;
-        } else if (testType === 'SMALL_IMAGE_DETECTOR') {
+        } else if ((testType === 'SMALL_IMAGE_DETECTOR') && (issueFound)) {
             const processingTime = currentTime - lastTime;
             timeInfo = `Small Image ${processingTime.toFixed(2)}s`;
         } else {
