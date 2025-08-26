@@ -130,7 +130,7 @@ window.$dataHandler = async function(allVehicleCards, csvData, result, testType,
                             
                             if (PAGINATION_SCROLL_TYPE) {
                                 const isComingSoon = await highlightCard(element, async () => {
-                                    return await window.isComingSoonImageByOCR(imageUrl);
+                                    return await window.isComingSoonImage(imageUrl);
                                 });
                                 
                                 if (isComingSoon) {
@@ -308,7 +308,6 @@ async function isExceptionValue(csv_key, csv_value, srp_value) {
 function normalizeValue(value) {
     if (!value) return '';
 
-    // check if this will not mismatch links
     let normalized = value.toString().toLowerCase();
 
     const globalReplacers = [

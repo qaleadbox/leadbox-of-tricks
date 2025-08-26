@@ -118,7 +118,6 @@
       font-weight: bold;
     }
 
-    /* Updated features button styles */
     .features-button {
       width: 32px !important;
       height: 32px;
@@ -491,6 +490,39 @@
     .file-input-label:hover {
       background: linear-gradient(to bottom, #cad6ea, #e0e9f7);
     }
+
+    input[type="radio"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #7f9db9;
+      border-radius: 50%;
+      background: white;
+      cursor: pointer;
+      position: relative;
+    }
+
+    input[type="radio"]:checked {
+      background: #3965c3;
+      border-color: #3965c3;
+    }
+
+    input[type="radio"]:checked::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px;
+      height: 6px;
+      background: white;
+      border-radius: 50%;
+    }
+
+    input[type="radio"]:hover {
+      border-color: #3965c3;
+    }
   </style>
 </head>
 
@@ -550,6 +582,28 @@
   </div>
 
   <button id="check missing images">Scan for Coming Soon Images <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
+  
+  <div id="methodSelectionDiv" style="display: none; margin-bottom: 10px; padding: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 4px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <label style="font-weight: bold; color: white;">Image Check Method:</label>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+          <input type="radio" name="imageCheckMethod" value="ocr" id="ocrMethod" style="margin: 0;">
+          <span>OCR</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+          <input type="radio" name="imageCheckMethod" value="openai" id="openaiMethod" style="margin: 0;">
+          <span>OpenAI</span>
+        </label>
+      </div>
+    </div>
+    <div style="font-size: 12px; color: #ccc; line-height: 1.4;">
+      <strong>OCR:</strong> Free, text-based detection<br>
+      <strong>OpenAI:</strong> Paid, AI-powered, more accurate, but with costs
+    </div>
+    <button id="startScanning" style="margin-top: 10px;">Start Scanning</button>
+  </div>
+  
   <div id="ocrInput" style="display: none; background: white; padding: 10px; border-radius: 4px; position: relative; z-index: 1001; color: black;">
     <div style="background-color: #ff4444; color: white; padding: 10px; border-radius: 4px; margin-bottom: 10px; font-weight: bold; text-align: center; font-size: 16px; text-transform: uppercase;">
       Image checks for this site are only possible through the API
@@ -563,6 +617,21 @@ Steps:
     </div>
     <textarea id="ocrKey" placeholder="Enter your OCR API key here..." style="height: 30px; min-height: 30px; max-height: 30px; resize: none;"></textarea>
     <button id="saveOcrKey">Save OCR Key</button>
+  </div>
+
+  <div id="openaiInput" style="display: none; background: white; padding: 10px; border-radius: 4px; position: relative; z-index: 1001; color: black;">
+    <div style="background-color: #ff4444; color: white; padding: 10px; border-radius: 4px; margin-bottom: 10px; font-weight: bold; text-align: center; font-size: 16px; text-transform: uppercase;">
+      Image checks for this site are only possible through the API
+    </div>
+    <div class="steps-label">
+Steps:
+1. Get your OpenAI API key:
+   - Sign up at <a href="https://platform.openai.com/api-keys" target="_blank">https://platform.openai.com/api-keys</a>
+   - Create a new API key
+<span class="bold">2. Enter your OpenAI key here:</span>
+    </div>
+    <textarea id="openaiKey" placeholder="Enter your OpenAI API key here..." style="height: 30px; min-height: 30px; max-height: 30px; resize: none;"></textarea>
+    <button id="saveOpenAIKey">Save OpenAI Key</button>
   </div>
   <script type="module" src="coming-soon-checker.js"></script>
 
