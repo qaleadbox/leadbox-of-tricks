@@ -1,3 +1,9 @@
+async function isPrinterEnabled() {
+	const { featureSettings } = await chrome.storage.local.get(['featureSettings']);
+	const settings = featureSettings || { printerIcon: true };
+	return settings.printerIcon !== false;
+}
+
 function duplicateMagnifyingGlass(original) {
     if (original.nextElementSibling?.classList?.contains('hacked-icon')) return;
 
@@ -29,8 +35,10 @@ const targetUrls = [
     'https://car-dealer-production-qa.azurewebsites.net/leads/internal'
 ];
 
-if (targetUrls.includes(window.location.href)) {
-    const observer = new MutationObserver((mutations) => {
+async function initPrinterIcon() {
+	if (!targetUrls.includes(window.location.href)) return;
+	if (!(await isPrinterEnabled())) return;
+	const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
             if (mutation.addedNodes.length) {
                 document.querySelectorAll('a[data-action="preview-lead"]').forEach(duplicateMagnifyingGlass);
@@ -45,5 +53,18 @@ if (targetUrls.includes(window.location.href)) {
 
     document.querySelectorAll('a[data-action="preview-lead"]').forEach(duplicateMagnifyingGlass);
 }
+
+initPrinterIcon();
+
+chrome.runtime.onMessage.addListener(async (msg) => {
+	if (msg && msg.type === 'featureSettingsUpdated') {
+		if (await isPrinterEnabled()) {
+			initPrinterIcon();
+		} else {
+			// remove injected icons
+			document.querySelectorAll('a.hacked-icon').forEach(el => el.remove());
+		}
+	}
+});
 
 

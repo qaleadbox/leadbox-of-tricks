@@ -188,6 +188,45 @@ featuresList.addEventListener('mouseleave', function() {
 
 import { exportFieldMapsToJson, importFieldMapsFromJson } from './field-map-storage.js';
 import { exportToCSVFile } from './$csv-exporter.js';
+import { IntellisenseSystem } from './intellisense-system.js';
+
+// Settings: load and save toggles
+const SETTINGS_KEY = 'featureSettings';
+const togglePrinterIconEl = document.getElementById('togglePrinterIcon');
+const toggleAutofillEl = document.getElementById('toggleAutofill');
+
+async function loadSettings() {
+    const { featureSettings } = await chrome.storage.local.get([SETTINGS_KEY]);
+    const settings = featureSettings || { printerIcon: true, autofill: true };
+    if (togglePrinterIconEl) togglePrinterIconEl.checked = !!settings.printerIcon;
+    if (toggleAutofillEl) toggleAutofillEl.checked = !!settings.autofill;
+}
+
+async function saveSettings(partial) {
+    const { featureSettings } = await chrome.storage.local.get([SETTINGS_KEY]);
+    const next = { printerIcon: true, autofill: true, ...(featureSettings || {}), ...partial };
+    await chrome.storage.local.set({ [SETTINGS_KEY]: next });
+    // Notify content scripts to re-evaluate
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs && tabs[0];
+        if (tab && tab.id) {
+            chrome.tabs.sendMessage(tab.id, { type: 'featureSettingsUpdated', settings: next });
+        }
+    });
+}
+
+if (togglePrinterIconEl) {
+    togglePrinterIconEl.addEventListener('change', async (e) => {
+        await saveSettings({ printerIcon: e.target.checked });
+    });
+}
+if (toggleAutofillEl) {
+    toggleAutofillEl.addEventListener('change', async (e) => {
+        await saveSettings({ autofill: e.target.checked });
+    });
+}
+
+loadSettings();
 
 document.getElementById('exportButton').addEventListener('click', async () => {
     try {
@@ -221,4 +260,65 @@ document.getElementById('importFile').addEventListener('change', async (event) =
         toggleLoading(false);
         event.target.value = '';
     }
-}); 
+});
+
+// Intellisense System Event Handlers
+document.getElementById('exportIntellisenseProfile').addEventListener('click', async () => {
+    try {
+        toggleLoading(true);
+        if (window.intellisenseSystem) {
+            await window.intellisenseSystem.exportSiteProfile();
+        } else {
+            alert('Intellisense system not initialized');
+        }
+    } catch (error) {
+        console.error('Error exporting intellisense profile:', error);
+        alert('Error exporting intellisense profile. Please try again.');
+    } finally {
+        toggleLoading(false);
+    }
+});
+
+document.getElementById('importIntellisenseFile').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+        toggleLoading(true);
+        const text = await file.text();
+        if (window.intellisenseSystem) {
+            const success = await window.intellisenseSystem.importSiteProfile(text);
+            if (success) {
+                alert('Intellisense profile imported successfully!');
+            } else {
+                alert('Error importing intellisense profile. Please check the file format.');
+            }
+        } else {
+            alert('Intellisense system not initialized');
+        }
+    } catch (error) {
+        console.error('Error importing intellisense profile:', error);
+        alert('Error importing intellisense profile. Please try again.');
+    } finally {
+        toggleLoading(false);
+        event.target.value = '';
+    }
+});
+
+document.getElementById('showIntellisenseStats').addEventListener('click', async () => {
+    try {
+        if (window.intellisenseSystem) {
+            const stats = window.intellisenseSystem.getProfileStats();
+            const statsText = `
+Site: ${stats.site}
+Total Suggestions: ${stats.totalSuggestions}
+            `;
+            alert(statsText);
+        } else {
+            alert('Intellisense system not initialized');
+        }
+    } catch (error) {
+        console.error('Error getting intellisense stats:', error);
+        alert('Error getting intellisense statistics.');
+    }
+});
