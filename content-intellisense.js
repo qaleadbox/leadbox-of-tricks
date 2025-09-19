@@ -1,5 +1,5 @@
 // Content Script Intellisense System for LeadBox of Tricks Extension
-// This runs on the actual webpage to provide intellisense functionality
+// Smart Autofiller (rebuild) — keeps same structure & method names
 
 class ContentIntellisenseSystem {
     constructor() {
@@ -10,11 +10,16 @@ class ContentIntellisenseSystem {
         this.isActive = false;
         this.suggestionBox = null;
         this.overlay = null;
-		this.bestHint = '';
+        this.bestHint = '';
         this.enabled = true;
         this._justAutofilled = false;
         this._atLineStart = false;
-        this._multiWordPrefix = '';
+        this._beforeCursorText = '';
+        this._prevWord = '';
+        this._currWord = '';
+        this.saveIconWord = null;
+        this.saveIconField = null;
+        this._measureCanvas = null;
         this.init();
     }
 
@@ -24,8 +29,7 @@ class ContentIntellisenseSystem {
         this.createSuggestionBox();
         this.bindEvents();
         this.createSaveIcons();
-		await this.loadSiteProfile();
-        // Listen for settings updates
+        await this.loadSiteProfile();
         chrome.runtime.onMessage.addListener((msg) => {
             if (msg && msg.type === 'featureSettingsUpdated') {
                 this.enabled = !!(msg.settings && msg.settings.autofill);
@@ -52,13 +56,14 @@ class ContentIntellisenseSystem {
             background: white;
             border: 1px solid #ccc;
             border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            max-height: 200px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+            max-height: 220px;
             overflow-y: auto;
-            z-index: 10000;
+            z-index: 2147483647;
             display: none;
-            font-family: 'Consolas', 'Monaco', monospace;
+            font-family: 'Consolas', 'Monaco', ui-monospace, monospace;
             font-size: 12px;
+            pointer-events: auto;
         `;
         document.body.appendChild(this.suggestionBox);
     }
@@ -103,7 +108,6 @@ class ContentIntellisenseSystem {
             this.currentInput.focus();
             await this.saveCurrentInput(this.currentInput);
         };
-        // Prevent stealing focus
         ['mousedown','pointerdown'].forEach(evt => {
             this.saveIconWord.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
             this.saveIconField.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
@@ -117,7 +121,7 @@ class ContentIntellisenseSystem {
         const rect = inputElement.getBoundingClientRect();
         const pageY = window.pageYOffset || document.documentElement.scrollTop;
         const pageX = window.pageXOffset || document.documentElement.scrollLeft;
-        const top = rect.top + pageY - 24; // above field
+        const top = rect.top + pageY - 24;
         const leftWord = rect.left + pageX + rect.width - 46;
         const leftField = rect.left + pageX + rect.width - 22;
         this.saveIconWord.style.top = top + 'px';
@@ -132,8 +136,6 @@ class ContentIntellisenseSystem {
         if (this.saveIconWord) this.saveIconWord.style.display = 'none';
         if (this.saveIconField) this.saveIconField.style.display = 'none';
     }
-
-    // Removed createOverlay()
 
     bindEvents() {
         const editableSelector = 'input:not([type="hidden"]), textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"], [contenteditable]';
@@ -159,7 +161,6 @@ class ContentIntellisenseSystem {
         }, true);
         document.addEventListener('blur', (e) => {
             if (e.target.matches(editableSelector)) {
-                this.hideOverlay && this.hideOverlay();
                 this._justAutofilled = false;
                 this.hideSaveIcons();
             }
@@ -171,17 +172,57 @@ class ContentIntellisenseSystem {
         });
     }
 
-	async loadSiteProfile() {
-		const result = await chrome.storage.local.get(['intellisenseGlobalSuggestions']);
-		this.suggestions = Array.isArray(result.intellisenseGlobalSuggestions) ? result.intellisenseGlobalSuggestions : [];
-	}
+    async loadSiteProfile() {
+        const { intellisenseGlobalSuggestions } = await chrome.storage.local.get(['intellisenseGlobalSuggestions']);
+        this.suggestions = Array.isArray(intellisenseGlobalSuggestions) ? Array.from(new Set(intellisenseGlobalSuggestions)).slice(0, 2000) : [];
+    }
 
-    // Removed showOverlay and hideOverlay methods
+    // -------- smart helpers --------
+    getQuoteInfo(word) {
+        const w = String(word || '');
+        const q = w[0];
+        return (q === '"' || q === "'" || q === '`')
+            ? { quote: q, inner: w.slice(1) }
+            : { quote: '', inner: w };
+    }
+    getActiveUnclosedQuote_(s) {
+        const text = String(s || '');
+        const lastD = text.lastIndexOf('"');
+        const lastS = text.lastIndexOf("'");
+        const lastB = text.lastIndexOf('`');
+        const last = Math.max(lastD, lastS, lastB);
+        if (last === -1) return '';
+        const q = text[last];
+        const rest = text.slice(last + 1);
+        return rest.includes(q) ? '' : q;
+    }
+    isQuotedTwoWordContext_(beforeCursor) {
+        const q = this.getActiveUnclosedQuote_(beforeCursor);
+        if (!q) return { active: false };
+        const since = beforeCursor.slice(beforeCursor.lastIndexOf(q) + 1);
+        const parts = since.split(/\s+/);
+        return { active: parts.length >= 2 && parts[0] && (parts[1] || '').length > 0, quote: q, inner: since };
+    }
+    getCompletionSuffix_(fullHint, twoWordPrefixOrNull, currentWord) {
+        const hint = String(fullHint || '');
+        const two = (twoWordPrefixOrNull || '').trim();
+        if (two) {
+            const i = hint.toLowerCase().indexOf(two.toLowerCase());
+            if (i === 0) return hint.slice(two.length);
+        }
+        const one = String(currentWord || '');
+        if (one) {
+            const i = hint.toLowerCase().indexOf(one.toLowerCase());
+            if (i === 0) return hint.slice(one.length);
+        }
+        return hint;
+    }
 
     handleInput(e) {
         if (!this.enabled) return;
         this.currentInput = e.target;
         this._justAutofilled = false;
+
         let currentWord = '';
         let prevWord = '';
         if (this.currentInput && this.currentInput.isContentEditable) {
@@ -195,6 +236,7 @@ class ContentIntellisenseSystem {
                 prevWord = parts.length >= 2 ? parts[parts.length - 2] : '';
                 const prevChar = before.charAt(before.length - currentWord.length - 1) || '';
                 this._atLineStart = (before.length === currentWord.length) || prevChar === '\n';
+                this._beforeCursorText = before;
             }
         } else {
             const value = e.target.value || '';
@@ -205,49 +247,74 @@ class ContentIntellisenseSystem {
             prevWord = words.length >= 2 ? words[words.length - 2] : '';
             const prevChar = beforeCursor.charAt(beforeCursor.length - currentWord.length - 1) || '';
             this._atLineStart = (beforeCursor.length === currentWord.length) || prevChar === '\n';
+            this._beforeCursorText = beforeCursor;
         }
-        // build multi-word prefix if applicable
-        this._multiWordPrefix = '';
-        if (prevWord && currentWord) {
-            const prefix = (prevWord + ' ' + currentWord).trim();
-            if (prefix.length >= 3) this._multiWordPrefix = prefix;
-        }
+
+        this._prevWord = prevWord;
+        this._currWord = currentWord;
+
         this.checkGhostHighlighting(e.target, currentWord);
-        if (currentWord.length >= 2) {
+
+        if ((currentWord || '').length >= 1) {
             this.showSuggestions(currentWord, e.target);
         } else {
             this.hideSuggestions();
         }
     }
 
-	checkGhostHighlighting(inputElement, currentWord) {
-        if (currentWord.length < 2) {
-            this.removeGhostHighlight(inputElement);
-			this.bestHint = '';
-            return;
+    checkGhostHighlighting(inputElement, currentWord) {
+        const before = String(this._beforeCursorText || '');
+        const quotedCtx = this.isQuotedTwoWordContext_(before);
+
+        // Rule: if first word + start of second word matches inside an open quote,
+        // ghost should suggest the rest of the quoted phrase + closing quote.
+        if (quotedCtx.active) {
+            const { quote, inner } = quotedCtx;
+            const parts = inner.split(/\s+/);
+            const first = parts[0];
+            const second = parts[1] || '';
+            const twoPref = (first + ' ' + second).toLowerCase();
+            const hit = (this.suggestions || []).find(s => String(s).toLowerCase().startsWith(twoPref));
+            if (hit) {
+                this.bestHint = String(hit);
+                const remainder = this.bestHint.substring(twoPref.length) + quote; // include closing quote
+                this.showGhostHighlight(inputElement, '', remainder);
+                return;
+            }
         }
 
-        // Find matching saved suggestions
-        const matchingSuggestions = this.suggestions.filter(suggestion =>
-            suggestion.toLowerCase().startsWith(currentWord.toLowerCase())
-        );
+        // Non-quoted: try two-word anywhere (prev + current) for better phrase completion
+        let candidate = '';
+        if (this._prevWord && currentWord) {
+            const two = (this._prevWord + ' ' + currentWord).toLowerCase();
+            candidate = (this.suggestions || []).find(s => String(s).toLowerCase().startsWith(two)) || '';
+            if (candidate) {
+                this.bestHint = candidate;
+                const remainder = candidate.substring(two.length);
+                this.showGhostHighlight(inputElement, '', remainder);
+                return;
+            }
+        }
 
-		if (matchingSuggestions.length > 0) {
-            // Get the best match (first one that starts with the current word)
-			const bestMatch = matchingSuggestions[0];
-			this.bestHint = bestMatch;
-			this.showGhostHighlight(inputElement, currentWord, bestMatch);
+        // Single prefix
+        if (!currentWord || currentWord.length < 1) {
+            this.removeGhostHighlight(inputElement);
+            this.bestHint = '';
+            return;
+        }
+        const single = (this.suggestions || []).find(s => String(s).toLowerCase().startsWith(currentWord.toLowerCase()));
+        if (single) {
+            this.bestHint = single;
+            const remainder = single.substring(currentWord.length);
+            this.showGhostHighlight(inputElement, '', remainder);
         } else {
-			this.removeGhostHighlight(inputElement);
-			this.bestHint = '';
+            this.removeGhostHighlight(inputElement);
+            this.bestHint = '';
         }
     }
 
-	showGhostHighlight(inputElement, currentWord, fullSuggestion) {
-        // Remove existing ghost highlight
+    showGhostHighlight(inputElement, _unusedPrefix, remainderText) {
         this.removeGhostHighlight(inputElement);
-        
-        // Create ghost text element
         const ghostText = document.createElement('span');
         ghostText.id = 'content-intellisense-ghost';
         ghostText.style.cssText = `
@@ -256,40 +323,30 @@ class ContentIntellisenseSystem {
             font-family: inherit;
             font-size: inherit;
             pointer-events: none;
-            z-index: 10001;
+            z-index: 2147483647;
             user-select: none;
             white-space: pre;
         `;
-        
-        // Position the ghost text at the caret position for any editable element
         const caretRect = this.getCaretClientRect(inputElement);
         ghostText.style.left = caretRect.left + 'px';
         ghostText.style.top = caretRect.top + 'px';
-        
-        // Set the ghost text content (only the part that extends beyond current word)
-        const remainingText = fullSuggestion.substring(currentWord.length);
-        ghostText.textContent = remainingText;
-        
+        ghostText.textContent = String(remainderText || '');
         document.body.appendChild(ghostText);
     }
 
-	// Measure text width using canvas to align ghost with caret
-	measureTextWidth(text, computedStyle) {
-		const canvas = this._measureCanvas || (this._measureCanvas = document.createElement('canvas'));
-		const ctx = canvas.getContext('2d');
-		const font = `${computedStyle.fontStyle} ${computedStyle.fontVariant} ${computedStyle.fontWeight} ${computedStyle.fontSize} / ${computedStyle.lineHeight} ${computedStyle.fontFamily}`;
-		ctx.font = font;
-		return ctx.measureText(text).width;
-	}
-
-    removeGhostHighlight(inputElement) {
-        const existingGhost = document.getElementById('content-intellisense-ghost');
-        if (existingGhost) {
-            existingGhost.remove();
-        }
+    measureTextWidth(text, computedStyle) {
+        const canvas = this._measureCanvas || (this._measureCanvas = document.createElement('canvas'));
+        const ctx = canvas.getContext('2d');
+        const font = `${computedStyle.fontStyle} ${computedStyle.fontVariant} ${computedStyle.fontWeight} ${computedStyle.fontSize} / ${computedStyle.lineHeight} ${computedStyle.fontFamily}`;
+        ctx.font = font;
+        return ctx.measureText(text).width;
     }
 
-    // Improve caret rect for inputs/textareas
+    removeGhostHighlight() {
+        const existingGhost = document.getElementById('content-intellisense-ghost');
+        if (existingGhost) existingGhost.remove();
+    }
+
     getCaretClientRect(element) {
         const pageY = window.pageYOffset || document.documentElement.scrollTop;
         const pageX = window.pageXOffset || document.documentElement.scrollLeft;
@@ -319,7 +376,6 @@ class ContentIntellisenseSystem {
             const borderTop = parseFloat(style.borderTopWidth) || 0;
             const contentWidth = rect.width - paddingLeft - paddingRight - borderLeft - (parseFloat(style.borderRightWidth) || 0);
             mirror.style.width = contentWidth + 'px';
-            // Insert text up to caret
             const before = (element.value || '').substring(0, element.selectionStart || 0).replace(/\n/g, '\n');
             mirror.textContent = before;
             const marker = document.createElement('span');
@@ -336,50 +392,92 @@ class ContentIntellisenseSystem {
         return { left: r.left + pageX, top: r.top + pageY, height: r.height };
     }
 
-	handleKeydown(e) {
-		if (!this.enabled) return;
-		if (e.key === 'Tab') {
-			if (!this.currentInput) this.currentInput = e.target;
+    handleKeydown(e) {
+        if (!this.enabled) return;
+        if (e.key === 'Tab') {
+            if (!this.currentInput) this.currentInput = e.target;
+            if (this._justAutofilled) { this._justAutofilled = false; return; }
 
-			if (this._justAutofilled) {
-				this._justAutofilled = false;
-				return; // native Tab now
-			}
+            // Ensure bestHint present
+            if (!this.bestHint && e.target) {
+                const currentWord = this.extractCurrentWord(e.target);
+                if (currentWord && currentWord.length >= 1) {
+                    const match = (this.suggestions || []).find(s => s.toLowerCase().startsWith(currentWord.toLowerCase()));
+                    if (match) this.bestHint = match;
+                }
+            }
 
-			// Find best hint
-			if (!this.bestHint && e.target) {
-				const currentWord = this.extractCurrentWord(e.target);
-				if (currentWord && currentWord.length >= 2) {
-					const match = (this.suggestions || []).find(s => s.toLowerCase().startsWith(currentWord.toLowerCase()));
-					if (match) this.bestHint = match;
-				}
-			}
+            // If quoted two-word context, append remainder + closing quote
+            const before = String(this._beforeCursorText || '');
+            const qctx = this.isQuotedTwoWordContext_(before);
+            if (qctx.active && this.bestHint) {
+                e.preventDefault(); e.stopPropagation();
+                const { quote, inner } = qctx;
+                const parts = inner.split(/\s+/);
+                const two = (parts[0] + ' ' + (parts[1] || ''));
+                const remainder = this.bestHint.substring(two.length) + quote;
+                if (this.currentInput.isContentEditable) {
+                    const sel = window.getSelection();
+                    if (!sel || sel.rangeCount === 0) return;
+                    const r = sel.getRangeAt(0);
+                    const caret = r.cloneRange(); caret.collapse(true);
+                    this.insertTextFragmentAtRange(caret, remainder);
+                    sel.removeAllRanges(); sel.addRange(caret);
+                } else {
+                    const caret = this.currentInput.selectionStart || 0;
+                    this.typeTextIntoInput(this.currentInput, remainder, caret, caret);
+                }
+                this.hideSuggestions();
+                this.removeGhostHighlight(this.currentInput);
+                this.saveOnTabPress(this.getElementTextValue(this.currentInput), this.bestHint);
+                this.bestHint = '';
+                this._justAutofilled = true;
+                return;
+            }
 
-			if (this.bestHint && this.currentInput) {
-				e.preventDefault();
-				e.stopPropagation();
-				this.replaceCurrentWordWith(this.currentInput, this.bestHint);
-				this.hideSuggestions();
-				this.removeGhostHighlight(this.currentInput);
-				this.saveOnTabPress(this.getElementTextValue(this.currentInput), this.bestHint);
-				this.bestHint = '';
-				this._justAutofilled = true;
-				return;
-			}
-			return; // no hint -> native
-		}
-		// reset after other keys/mouse
-		this._justAutofilled = false;
-	}
+            // Non-quoted: insert only the missing suffix
+            if (this.bestHint && this.currentInput) {
+                e.preventDefault(); e.stopPropagation();
+                const suffix = this.getCompletionSuffix_(this.bestHint, (this._prevWord && this._currWord) ? (this._prevWord + ' ' + this._currWord) : null, this._currWord);
+                if (this.currentInput.isContentEditable) {
+                    const sel = window.getSelection();
+                    if (!sel || sel.rangeCount === 0) return;
+                    const r = sel.getRangeAt(0);
+                    const caret = r.cloneRange(); caret.collapse(true);
+                    this.insertTextFragmentAtRange(caret, suffix);
+                    sel.removeAllRanges(); sel.addRange(caret);
+                } else {
+                    const caret = this.currentInput.selectionStart || 0;
+                    this.typeTextIntoInput(this.currentInput, suffix, caret, caret);
+                }
+                this.hideSuggestions();
+                this.removeGhostHighlight(this.currentInput);
+                this.saveOnTabPress(this.getElementTextValue(this.currentInput), this.bestHint);
+                this.bestHint = '';
+                this._justAutofilled = true;
+                return;
+            }
+            return; // native Tab when no hint
+        }
 
-    // Extract the current word at caret from any editable element
+        // list navigation when open
+        if (this.isActive && this.suggestionBox && this.suggestionBox.style.display !== 'none') {
+            if (e.key === 'ArrowDown') { e.preventDefault(); this.nextSuggestion(); this._justAutofilled = false; return; }
+            if (e.key === 'ArrowUp')   { e.preventDefault(); this.previousSuggestion(); this._justAutofilled = false; return; }
+            if (e.key === 'Enter')     { e.preventDefault(); this.acceptSuggestion(); this._justAutofilled = true; return; }
+            if (e.key === 'Escape')    { e.preventDefault(); this.hideSuggestions(); this.removeGhostHighlight(this.currentInput); return; }
+        }
+
+        this._justAutofilled = false;
+    }
+
     extractCurrentWord(target) {
         if (target && target.isContentEditable) {
             const sel = window.getSelection();
             if (sel && sel.rangeCount > 0) {
                 const range = sel.getRangeAt(0);
-                const containerText = range.startContainer.textContent || '';
-                const before = containerText.substring(0, range.startOffset);
+                const text = (range.startContainer.textContent || '');
+                const before = text.substring(0, range.startOffset);
                 const parts = before.split(/\s+/);
                 return parts[parts.length - 1] || '';
             }
@@ -392,64 +490,47 @@ class ContentIntellisenseSystem {
         return words[words.length - 1] || '';
     }
 
-    // Replace the current word at caret with provided text for both input-like and contenteditable
     replaceCurrentWordWith(element, replacementText) {
         if (!element) return;
         if (element.isContentEditable) {
             const sel = window.getSelection();
             if (!sel || sel.rangeCount === 0) return;
             let range = sel.getRangeAt(0);
-            // Ensure we operate on a text node
             let node = range.startContainer;
             let offset = range.startOffset;
             if (node.nodeType !== Node.TEXT_NODE) {
-                // Try to find nearest text node
                 if (node.firstChild && node.firstChild.nodeType === Node.TEXT_NODE) {
                     node = node.firstChild;
                     offset = Math.min(offset, (node.textContent || '').length);
                 } else {
                     const textNode = document.createTextNode('');
                     node.insertBefore(textNode, node.firstChild || null);
-                    node = textNode;
-                    offset = 0;
+                    node = textNode; offset = 0;
                 }
             }
             const text = node.textContent || '';
             offset = Math.max(0, Math.min(offset, text.length));
-            // Find word boundaries
-            let wordStart = offset;
-            let wordEnd = offset;
+            let wordStart = offset, wordEnd = offset;
             while (wordStart > 0 && !/\s/.test(text.charAt(wordStart - 1))) wordStart--;
             while (wordEnd < text.length && !/\s/.test(text.charAt(wordEnd))) wordEnd++;
-            // Delete current word
             const pre = document.createTextNode(text.substring(0, wordStart));
             const post = document.createTextNode(text.substring(wordEnd));
-            const parent = node.parentNode;
-            if (!parent) return;
+            const parent = node.parentNode; if (!parent) return;
             parent.insertBefore(pre, node);
             parent.insertBefore(post, node.nextSibling);
             parent.removeChild(node);
-            // Build fragment with line breaks
-            const fragment = document.createDocumentFragment();
-            const parts = String(replacementText).split(/\r?\n/);
-            parts.forEach((part, idx) => {
-                fragment.appendChild(document.createTextNode(part));
-                if (idx < parts.length - 1) fragment.appendChild(document.createElement('br'));
-            });
+            const fragment = this.buildMultilineFragment(replacementText);
             parent.insertBefore(fragment, post);
-            // Place caret after inserted content
             const newCaretNode = post.previousSibling && post.previousSibling.nodeType === Node.TEXT_NODE ? post.previousSibling : post;
             const newOffset = newCaretNode.nodeType === Node.TEXT_NODE ? (newCaretNode.textContent || '').length : 0;
             const afterRange = document.createRange();
             afterRange.setStart(newCaretNode, newOffset);
             afterRange.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(afterRange);
+            sel.removeAllRanges(); sel.addRange(afterRange);
             element.dispatchEvent(new Event('input', { bubbles: true }));
             element.dispatchEvent(new Event('change', { bubbles: true }));
             return;
         }
-        // Input/Textarea path
         const value = element.value || '';
         const cursorPosition = element.selectionStart || 0;
         const beforeCursor = value.substring(0, cursorPosition);
@@ -461,65 +542,50 @@ class ContentIntellisenseSystem {
     }
 
     showSuggestions(query, inputElement) {
-        const qLower = query.toLowerCase();
-        const mwLower = (this._multiWordPrefix || '').toLowerCase();
-        // Base: starts with current word
-        let set = new Map();
-        for (const s of this.suggestions) {
-            const sl = String(s).toLowerCase();
-            if (sl.startsWith(qLower)) set.set(s, 'single');
+        // respect quotes: match on inner if the token starts with a quote
+        const { inner } = this.getQuoteInfo(query);
+        const q = inner || query;
+
+        let filtered = (this.suggestions || []).filter(s =>
+            String(s).toLowerCase().startsWith(String(q).toLowerCase())
+        );
+
+        // If quoted context and we have two tokens inside the quote, tighten by two-word prefix
+        const qc = this.isQuotedTwoWordContext_(String(this._beforeCursorText || ''));
+        if (qc.active) {
+            const parts = qc.inner.split(/\s+/);
+            const two = (parts[0] + ' ' + (parts[1] || '')).toLowerCase();
+            filtered = filtered.filter(s => String(s).toLowerCase().startsWith(two));
         }
-        // Also include multi-word prefix matches when available
-        if (mwLower) {
-            for (const s of this.suggestions) {
-                const sl = String(s).toLowerCase();
-                if (sl.startsWith(mwLower)) set.set(s, 'multi');
-            }
-        }
-        let filteredSuggestions = Array.from(set.keys());
-        if (filteredSuggestions.length === 0) {
-            this.hideSuggestions();
-            return;
-        }
-        // Prioritize: if at line start prefer multi-word; otherwise still put multi prefix matches on top
-        if (mwLower) {
-            filteredSuggestions.sort((a, b) => {
-                const al = String(a).toLowerCase();
-                const bl = String(b).toLowerCase();
-                const aMulti = al.startsWith(mwLower);
-                const bMulti = bl.startsWith(mwLower);
-                if (aMulti !== bMulti) return aMulti ? -1 : 1;
-                // then shorter first to show tighter matches
-                return a.length - b.length;
-            });
-        } else if (this._atLineStart) {
-            filteredSuggestions.sort((a, b) => {
-                const aMulti = /\s/.test(a);
-                const bMulti = /\s/.test(b);
-                if (aMulti !== bMulti) return aMulti ? -1 : 1;
-                return a.length - b.length;
+
+        if (!filtered.length) { this.hideSuggestions(); return; }
+
+        if (this._atLineStart) {
+            filtered.sort((a, b) => {
+                const aMulti = /\s/.test(a), bMulti = /\s/.test(b);
+                if (aMulti === bMulti) return a.length - b.length;
+                return aMulti ? -1 : 1;
             });
         }
-        filteredSuggestions = filteredSuggestions.slice(0, 10);
+
+        filtered = filtered.slice(0, 10);
         this.suggestionIndex = -1;
-        this.renderSuggestions(filteredSuggestions, query, this._multiWordPrefix);
+        this.renderSuggestions(filtered, q);
         this.positionSuggestionBox(inputElement);
         this.isActive = true;
     }
 
     renderSuggestions(suggestions, query) {
         this.suggestionBox.innerHTML = '';
-    
-        // keep strong contrast and top layer
         this.suggestionBox.style.background = 'white';
         this.suggestionBox.style.color = '#111';
         this.suggestionBox.style.border = '1px solid #ccc';
         this.suggestionBox.style.zIndex = '2147483647';
         this.suggestionBox.style.boxShadow = '0 2px 10px rgba(0,0,0,0.25)';
         this.suggestionBox.style.pointerEvents = 'auto';
-    
+
         const qLower = (query || '').toLowerCase();
-    
+
         suggestions.forEach((suggestion, index) => {
             const item = document.createElement('div');
             item.className = 'suggestion-item';
@@ -536,20 +602,14 @@ class ContentIntellisenseSystem {
                 color: #111 !important;
                 user-select: none !important;
             `;
-    
-            // Accept on pointerdown only when the target is NOT the remove button
             item.addEventListener('pointerdown', (ev) => {
-                // if the original click was on the × button or inside it, do nothing here
-                if (ev.target && ev.target.closest('.suggestion-remove')) {
-                    return; // let the button's own handler run
-                }
-                ev.preventDefault();
-                ev.stopPropagation();
+                if (ev.target && ev.target.closest('.suggestion-remove')) return; // let button handle
+                ev.preventDefault(); ev.stopPropagation();
                 this.suggestionIndex = index;
                 if (!this.currentInput) this.currentInput = document.activeElement;
                 this.acceptSuggestion();
             }, { capture: true });
-    
+
             const textSpan = document.createElement('span');
             textSpan.className = 'suggestion-text';
             textSpan.style.cssText = 'color:#111 !important;';
@@ -561,13 +621,12 @@ class ContentIntellisenseSystem {
             } else {
                 textSpan.textContent = s;
             }
-    
-            // Safe delete (×) button
+
             const closeBtn = document.createElement('button');
-            closeBtn.className = 'suggestion-remove';   // <- used by the guard above
-            closeBtn.type = 'button';
+            closeBtn.className = 'suggestion-remove';
             closeBtn.textContent = '×';
             closeBtn.title = 'Remove suggestion';
+            closeBtn.type = 'button';
             closeBtn.style.cssText = `
                 border: none !important;
                 background: transparent !important;
@@ -578,45 +637,32 @@ class ContentIntellisenseSystem {
                 padding: 0 4px !important;
                 z-index: 2147483647 !important;
             `;
-    
-            // Don’t let the button trigger parent handlers or blur the input
-            closeBtn.addEventListener('pointerdown', (ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-            }, true);
-            closeBtn.addEventListener('mousedown', (ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-            }, true);
-    
+            closeBtn.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); }, true);
+            closeBtn.addEventListener('mousedown', (ev) => { ev.preventDefault(); ev.stopPropagation(); }, true);
             closeBtn.addEventListener('click', async (ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
+                ev.preventDefault(); ev.stopPropagation();
                 await this.deleteSuggestion(suggestion);
                 this.showSuggestions(query, this.currentInput || document.activeElement);
             });
-    
+
             item.appendChild(textSpan);
             item.appendChild(closeBtn);
-    
+
             item.addEventListener('mouseenter', () => {
                 this.suggestionIndex = index;
                 this.updateHighlight();
             });
-    
+
             this.suggestionBox.appendChild(item);
         });
-    
+
         this.suggestionBox.style.display = 'block';
     }
-    
-    
 
     positionSuggestionBox(inputElement) {
         const rect = inputElement.getBoundingClientRect();
         const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
         const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-        
         this.suggestionBox.style.left = (rect.left + scrollLeft) + 'px';
         this.suggestionBox.style.top = (rect.bottom + scrollTop + 2) + 'px';
         this.suggestionBox.style.width = rect.width + 'px';
@@ -631,40 +677,66 @@ class ContentIntellisenseSystem {
 
     nextSuggestion() {
         const items = this.suggestionBox.querySelectorAll('.suggestion-item');
-        if (items.length === 0) return;
-        
+        if (!items.length) return;
         this.suggestionIndex = (this.suggestionIndex + 1) % items.length;
         this.updateHighlight();
     }
 
     previousSuggestion() {
         const items = this.suggestionBox.querySelectorAll('.suggestion-item');
-        if (items.length === 0) return;
-        
+        if (!items.length) return;
         this.suggestionIndex = this.suggestionIndex <= 0 ? items.length - 1 : this.suggestionIndex - 1;
         this.updateHighlight();
     }
 
-	acceptSuggestion() {
+    acceptSuggestion() {
         if (this.suggestionIndex < 0 || !this.currentInput) return;
-    
         const items = this.suggestionBox.querySelectorAll('.suggestion-item');
         if (!items.length) return;
-    
+
         const selectedItem = items[this.suggestionIndex];
-        // Pull the true value; fall back to span text if dataset missing
-        const selectedSuggestion =
+        const baseSuggestion =
             (selectedItem && selectedItem.dataset && selectedItem.dataset.value) ||
             (selectedItem.querySelector('.suggestion-text')?.textContent || '');
-    
+
+        // Quoted two-word context: append remainder + auto close
+        const before = String(this._beforeCursorText || '');
+        const quotedCtx = this.isQuotedTwoWordContext_(before);
+        if (quotedCtx.active) {
+            const { quote, inner } = quotedCtx;
+            const parts = inner.split(/\s+/);
+            const two = (parts[0] + ' ' + (parts[1] || ''));
+            const remainder = baseSuggestion.substring(two.length) + quote;
+
+            if (this.currentInput.isContentEditable) {
+                const sel = window.getSelection();
+                if (!sel || sel.rangeCount === 0) return;
+                const r = sel.getRangeAt(0);
+                const caret = r.cloneRange(); caret.collapse(true);
+                this.insertTextFragmentAtRange(caret, remainder);
+                sel.removeAllRanges(); sel.addRange(caret);
+                this.hideSuggestions(); this.removeGhostHighlight(this.currentInput);
+                this.saveOnTabPress(this.getElementTextValue(this.currentInput), baseSuggestion);
+                this.currentInput.dispatchEvent(new Event('input', { bubbles: true }));
+                return;
+            } else {
+                const caret = this.currentInput.selectionStart || 0;
+                this.typeTextIntoInput(this.currentInput, remainder, caret, caret);
+                this.hideSuggestions(); this.removeGhostHighlight(this.currentInput);
+                this.saveOnTabPress(this.getElementTextValue(this.currentInput), baseSuggestion);
+                this.currentInput.dispatchEvent(new Event('input', { bubbles: true }));
+                return;
+            }
+        }
+
+        // Default: replace current token with suggestion
         if (this.currentInput.isContentEditable) {
-            this.replaceCurrentWordWith(this.currentInput, selectedSuggestion);
-            this.hideSuggestions();
-            this.removeGhostHighlight(this.currentInput);
-            this.saveOnTabPress(this.getElementTextValue(this.currentInput), selectedSuggestion);
+            this.replaceCurrentWordWith(this.currentInput, baseSuggestion);
+            this.hideSuggestions(); this.removeGhostHighlight(this.currentInput);
+            this.saveOnTabPress(this.getElementTextValue(this.currentInput), baseSuggestion);
             return;
         }
-    
+
         const value = this.currentInput.value || '';
         const cursorPosition = this.currentInput.selectionStart || 0;
         const beforeCursor = value.substring(0, cursorPosition);
@@ -672,90 +744,67 @@ class ContentIntellisenseSystem {
         const currentWord = words[words.length - 1] || '';
         const replaceStart = Math.max(0, beforeCursor.length - currentWord.length);
         const replaceEnd = cursorPosition;
-    
-        this.typeTextIntoInput(this.currentInput, selectedSuggestion, replaceStart, replaceEnd);
-    
-        this.hideSuggestions();
-        this.removeGhostHighlight(this.currentInput);
-        this.saveOnTabPress(this.getElementTextValue(this.currentInput), selectedSuggestion);
-    
-        // ensure any listeners update
+        this.typeTextIntoInput(this.currentInput, baseSuggestion, replaceStart, replaceEnd);
+        this.hideSuggestions(); this.removeGhostHighlight(this.currentInput);
+        this.saveOnTabPress(this.getElementTextValue(this.currentInput), baseSuggestion);
         this.currentInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    
 
-	// Simulate real typing into an input by dispatching keyboard and input events
-	typeTextIntoInput(inputElement, textToType, selectionStart, selectionEnd) {
-		if (!inputElement) return;
-		inputElement.focus();
-		const isTextArea = inputElement.tagName === 'TEXTAREA';
-		const valueDescriptor = Object.getOwnPropertyDescriptor(isTextArea ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value');
-		const setNativeValue = valueDescriptor && valueDescriptor.set ? (val) => valueDescriptor.set.call(inputElement, val) : (val) => { inputElement.value = val; };
-		// Select the range to replace
-		if (typeof selectionStart === 'number' && typeof selectionEnd === 'number') {
-			inputElement.setSelectionRange(selectionStart, selectionEnd);
-		}
-		// Remove current selection
-		const start = inputElement.selectionStart;
-		const end = inputElement.selectionEnd;
-		let currentValue = inputElement.value.substring(0, start) + inputElement.value.substring(end);
-		setNativeValue(currentValue);
-		inputElement.setSelectionRange(start, start);
-		inputElement.dispatchEvent(new Event('input', { bubbles: true }));
-		// Type each character using native setter so frameworks pick it up
-		for (const ch of textToType) {
-			if (ch === '\n') {
-				const keydownEnter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
-				inputElement.dispatchEvent(keydownEnter);
-				const insertPos = inputElement.selectionStart;
-				currentValue = inputElement.value;
-				const newValue = currentValue.substring(0, insertPos) + '\n' + currentValue.substring(insertPos);
-				setNativeValue(newValue);
-				const newPos = insertPos + 1;
-				inputElement.setSelectionRange(newPos, newPos);
-				try {
-					const inputEvt = new InputEvent('input', { bubbles: true, inputType: 'insertLineBreak', data: null });
-					inputElement.dispatchEvent(inputEvt);
-				} catch (e) {
-					inputElement.dispatchEvent(new Event('input', { bubbles: true }));
-				}
-				const keyupEnter = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
-				inputElement.dispatchEvent(keyupEnter);
-				continue;
-			}
-			const keydown = new KeyboardEvent('keydown', { key: ch, bubbles: true, cancelable: true });
-			inputElement.dispatchEvent(keydown);
-			const insertPos = inputElement.selectionStart;
-			currentValue = inputElement.value;
-			const newValue = currentValue.substring(0, insertPos) + ch + currentValue.substring(insertPos);
-			setNativeValue(newValue);
-			const newPos = insertPos + ch.length;
-			inputElement.setSelectionRange(newPos, newPos);
-			try {
-				const inputEvt = new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ch });
-				inputElement.dispatchEvent(inputEvt);
-			} catch (e) {
-				inputElement.dispatchEvent(new Event('input', { bubbles: true }));
-			}
-			const keyup = new KeyboardEvent('keyup', { key: ch, bubbles: true, cancelable: true });
-			inputElement.dispatchEvent(keyup);
-		}
-		// Fire change at the end to help forms that read value on change/submit
-		inputElement.dispatchEvent(new Event('change', { bubbles: true }));
-	}
+    typeTextIntoInput(inputElement, textToType, selectionStart, selectionEnd) {
+        if (!inputElement) return;
+        inputElement.focus();
+        const isTextArea = inputElement.tagName === 'TEXTAREA';
+        const valueDescriptor = Object.getOwnPropertyDescriptor(isTextArea ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value');
+        const setNativeValue = valueDescriptor && valueDescriptor.set ? (val) => valueDescriptor.set.call(inputElement, val) : (val) => { inputElement.value = val; };
+        if (typeof selectionStart === 'number' && typeof selectionEnd === 'number') inputElement.setSelectionRange(selectionStart, selectionEnd);
+        const start = inputElement.selectionStart;
+        const end = inputElement.selectionEnd;
+        let currentValue = inputElement.value.substring(0, start) + inputElement.value.substring(end);
+        setNativeValue(currentValue);
+        inputElement.setSelectionRange(start, start);
+        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+        for (const ch of textToType) {
+            if (ch === '\n') {
+                const kd = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+                inputElement.dispatchEvent(kd);
+                const insertPos = inputElement.selectionStart;
+                currentValue = inputElement.value;
+                const newValue = currentValue.substring(0, insertPos) + '\n' + currentValue.substring(insertPos);
+                setNativeValue(newValue);
+                const newPos = insertPos + 1;
+                inputElement.setSelectionRange(newPos, newPos);
+                try { inputElement.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertLineBreak', data: null })); }
+                catch { inputElement.dispatchEvent(new Event('input', { bubbles: true })); }
+                const ku = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+                inputElement.dispatchEvent(ku);
+                continue;
+            }
+            const kd = new KeyboardEvent('keydown', { key: ch, bubbles: true, cancelable: true });
+            inputElement.dispatchEvent(kd);
+            const insertPos = inputElement.selectionStart;
+            currentValue = inputElement.value;
+            const newValue = currentValue.substring(0, insertPos) + ch + currentValue.substring(insertPos);
+            setNativeValue(newValue);
+            const newPos = insertPos + ch.length;
+            inputElement.setSelectionRange(newPos, newPos);
+            try { inputElement.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ch })); }
+            catch { inputElement.dispatchEvent(new Event('input', { bubbles: true })); }
+            const ku = new KeyboardEvent('keyup', { key: ch, bubbles: true, cancelable: true });
+            inputElement.dispatchEvent(ku);
+        }
+        inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+    }
 
-	// Move focus to the next focusable element to mimic native Tab behavior
-	moveFocusToNextElement(current) {
-		const candidates = Array.from(document.querySelectorAll('input, textarea, select, button, a[href], [tabindex]'))
-			.filter(el => !el.hasAttribute('disabled') && el.tabIndex !== -1 && el.offsetParent !== null);
-		const index = candidates.indexOf(current);
-		if (index >= 0) {
-			const next = candidates[index + 1] || candidates[0];
-			next.focus();
-		}
-	}
+    moveFocusToNextElement(current) {
+        const candidates = Array.from(document.querySelectorAll('input, textarea, select, button, a[href], [tabindex]'))
+            .filter(el => !el.hasAttribute('disabled') && el.tabIndex !== -1 && el.offsetParent !== null);
+        const index = candidates.indexOf(current);
+        if (index >= 0) {
+            const next = candidates[index + 1] || candidates[0];
+            next.focus();
+        }
+    }
 
-    // Save current input when Tab is pressed
     async saveCurrentInput(inputElement) {
         const rawValue = this.getElementTextValue(inputElement);
         if (!rawValue || rawValue.trim().length === 0) return;
@@ -764,7 +813,6 @@ class ContentIntellisenseSystem {
             await this.addSuggestion(trimmedValue);
             this.showSaveFeedback();
         }
-        // Save individual words in lowercase
         const words = trimmedValue.split(/\s+/);
         for (const word of words) {
             const term = word.toLowerCase();
@@ -772,14 +820,12 @@ class ContentIntellisenseSystem {
                 await this.addSuggestion(term);
             }
         }
-        // Save lines separately using raw value
         const lines = rawValue.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
         for (const line of lines) {
             if (!this.suggestions.includes(line)) {
                 await this.addSuggestion(line);
             }
         }
-        // Save phrases (patterns) from trimmed
         const phrases = this.extractPhrases(trimmedValue);
         for (const phrase of phrases) {
             if (phrase.length >= 3 && !this.suggestions.includes(phrase)) {
@@ -788,7 +834,6 @@ class ContentIntellisenseSystem {
         }
     }
 
-    // Save data only when Tab is pressed (for suggestions)
     async saveOnTabPress(inputValue, acceptedSuggestion) {
         if (!inputValue || inputValue.trim().length === 0) return;
         const rawValue = inputValue;
@@ -800,7 +845,6 @@ class ContentIntellisenseSystem {
         if (acceptedSuggestion && !this.suggestions.includes(acceptedSuggestion)) {
             await this.addSuggestion(acceptedSuggestion);
         }
-        // Save individual words in lowercase
         const words = trimmedValue.split(/\s+/);
         for (const word of words) {
             const term = word.toLowerCase();
@@ -808,14 +852,12 @@ class ContentIntellisenseSystem {
                 await this.addSuggestion(term);
             }
         }
-        // Save lines from raw value
         const lines = rawValue.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
         for (const line of lines) {
             if (!this.suggestions.includes(line)) {
                 await this.addSuggestion(line);
             }
         }
-        // Save phrases
         const phrases = this.extractPhrases(trimmedValue);
         for (const phrase of phrases) {
             if (phrase.length >= 3 && !this.suggestions.includes(phrase)) {
@@ -824,136 +866,108 @@ class ContentIntellisenseSystem {
         }
     }
 
-    // Show visual feedback when something is saved
     showSaveFeedback() {
-        if (this.currentInput) {
-            // Create a green flash effect
-            const originalBorder = this.currentInput.style.border;
-            const originalBackground = this.currentInput.style.backgroundColor;
-            
-            this.currentInput.style.border = '2px solid #4CAF50';
-            this.currentInput.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
-            
-            setTimeout(() => {
-                this.currentInput.style.border = originalBorder;
-                this.currentInput.style.backgroundColor = originalBackground;
-            }, 300);
-        }
+        // keep subtle to avoid visual noise
+        return;
     }
 
-    // Extract meaningful phrases from text
     extractPhrases(text) {
         const phrases = [];
-        
-        // Extract common patterns
         const patterns = [
-            /[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g, // CamelCase words
-            /[a-z]+(?:_[a-z]+)+/g, // snake_case
-            /[a-z]+(?:\-[a-z]+)+/g, // kebab-case
-            /[A-Z]+(?:_[A-Z]+)+/g, // UPPER_SNAKE_CASE
-            /[A-Z][a-z]+(?:\-[A-Z][a-z]+)*/g, // PascalCase
+            /[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g,
+            /[a-z]+(?:_[a-z]+)+/g,
+            /[a-z]+(?:\-[a-z]+)+/g,
+            /[A-Z]+(?:_[A-Z]+)+/g,
+            /[A-Z][a-z]+(?:\-[A-Z][a-z]+)*/g,
         ];
-        
-        patterns.forEach(pattern => {
-            const matches = text.match(pattern);
-            if (matches) {
-                phrases.push(...matches);
-            }
+        patterns.forEach(p => {
+            const m = text.match(p);
+            if (m) phrases.push(...m);
         });
-        
-        // Extract quoted strings
-        const quotedMatches = text.match(/"([^"]+)"/g);
-        if (quotedMatches) {
-            phrases.push(...quotedMatches.map(q => q.slice(1, -1)));
+        const quoted = text.match(/"([^"]+)"|'([^']+)'|`([^`]+)`/g);
+        if (quoted) {
+            for (const q of quoted) phrases.push(q.slice(1, -1));
         }
-        
         return phrases;
     }
 
     hideSuggestions() {
+        if (!this.suggestionBox) return;
         this.suggestionBox.style.display = 'none';
         this.isActive = false;
         this.suggestionIndex = -1;
         this.removeGhostHighlight(this.currentInput);
     }
 
-	// Add new suggestions to the global profile
     async addSuggestion(suggestion) {
-        if (!this.suggestions.includes(suggestion)) {
-            this.suggestions.push(suggestion);
-			await this.saveSiteProfile();
-            // Show immediate feedback for new suggestions
+        const v = String(suggestion);
+        if (!this.suggestions.includes(v)) {
+            this.suggestions.push(v);
+            await this.saveSiteProfile();
             this.showSaveFeedback();
         }
     }
 
-	// Delete a suggestion from the global profile
     async deleteSuggestion(suggestion) {
-        const idx = this.suggestions.indexOf(suggestion);
-        if (idx !== -1) {
-            this.suggestions.splice(idx, 1);
+        const normalize = (s) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+        const target = normalize(suggestion);
+        const beforeLen = this.suggestions.length;
+        this.suggestions = this.suggestions.filter(item => normalize(item) !== target);
+        if (this.suggestions.length !== beforeLen) {
             await this.saveSiteProfile();
         }
     }
 
-	// Save the global profile
     async saveSiteProfile() {
-		await chrome.storage.local.set({ intellisenseGlobalSuggestions: this.suggestions });
+        await chrome.storage.local.set({ intellisenseGlobalSuggestions: this.suggestions });
     }
 
-    // Get statistics about the current profile
     getProfileStats() {
-        return {
-            site: this.currentSite,
-            totalSuggestions: this.suggestions.length
-        };
+        return { site: this.currentSite, totalSuggestions: this.suggestions.length };
     }
 
-    // Helper to read textual value from any editable element
     getElementTextValue(el) {
         if (!el) return '';
-        if (el.isContentEditable) {
-            // Use innerText to preserve visual line breaks across sites
-            return (el.innerText || el.textContent || '');
-        }
+        if (el.isContentEditable) return (el.innerText || el.textContent || '');
         return (el.value || '');
     }
 
-    // Escape a string for safe use in RegExp
-    escapeRegExp(str) {
-        return (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
-    // Minimal HTML escape for safe innerHTML usage
+    escapeRegExp(str) { return (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
     escapeHtml(str) {
         return String(str).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
     }
+
+    buildMultilineFragment(text) {
+        const fragment = document.createDocumentFragment();
+        const parts = String(text).split(/\r?\n/);
+        parts.forEach((part, idx) => {
+            fragment.appendChild(document.createTextNode(part));
+            if (idx < parts.length - 1) fragment.appendChild(document.createElement('br'));
+        });
+        return fragment;
+    }
+    insertTextFragmentAtRange(range, text) {
+        const frag = this.buildMultilineFragment(text);
+        range.insertNode(frag);
+        range.setStart(range.endContainer, range.endOffset);
+        range.collapse(true);
+    }
 }
 
-// Add CSS animations for the content script
+// Add CSS (strong highlight color)
 const style = document.createElement('style');
 style.textContent = `
     @keyframes content-intellisense-pulse {
-        0% {
-            border-color: rgba(76, 175, 80, 0.3);
-            background: rgba(76, 175, 80, 0.1);
-        }
-        50% {
-            border-color: rgba(76, 175, 80, 0.6);
-            background: rgba(76, 175, 80, 0.2);
-        }
-        100% {
-            border-color: rgba(76, 175, 80, 0.3);
-            background: rgba(76, 175, 80, 0.1);
-        }
+        0% { border-color: rgba(76, 175, 80, 0.3); background: rgba(76, 175, 80, 0.1); }
+        50% { border-color: rgba(76, 175, 80, 0.6); background: rgba(76, 175, 80, 0.2); }
+        100% { border-color: rgba(76, 175, 80, 0.3); background: rgba(76, 175, 80, 0.1); }
     }
-
-    #content-intellisense-suggestions .suggestion-item strong { color: #4CAF50; font-weight: bold; }
+    #content-intellisense-suggestions .suggestion-item strong { color: #2E7D32; font-weight: 700; }
 `;
 if (!document.getElementById('content-intellisense-style')) {
     style.id = 'content-intellisense-style';
     document.head.appendChild(style);
 }
 
-// Initialize the content intellisense system
+// Initialize
 window.contentIntellisenseSystem = new ContentIntellisenseSystem();

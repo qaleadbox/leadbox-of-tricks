@@ -83,6 +83,11 @@ Steps:
 2. The extension automatically adds printer icons next to each lead
 3. Click the printer icon to view the printed version of the lead
 
+## Feature 006: Text autofiller and fields saving
+   - Access a any field
+   - Type anything, click on save buttons
+   - Type again, tap tab, it will autofill
+
 # Structure
 
 ## File Tree
@@ -101,6 +106,8 @@ root/
 ├── $scrolling.js                                   # [SHARED SCRIPT] Feature's scroller
 ├── background.js                                   # [BACKGROUND] Default extension file
 ├── coming-soon-checker.js                          # [MAIN SCRIPT] Coming Soon Images checker
+├── intellisense-system.js                          # [MAIN SCRIPT] Intellisense system
+├── content-intellisense.js                         # [AUXILIAR SCRIPT] Intellisense detailer scripts
 ├── csv-srp-data-matcher.js                         # [MAIN SCRIPT] CSV-SRP matcher
 ├── field-map-storage.js                            # [SCRIPT] Field map helper
 ├── lead-print-icon-injector.js                     # [MAIN SCRIPT] Leads printer icon script
@@ -155,6 +162,8 @@ root/
 
 ## Version History
 
+- v3.4: LBX-text-autofiller
+- v3.3: Allow-user-to-set-image-size-threshold Latest
 - v3.2: Implemented checking images by OpenAI API
 - v3.1: Added small images detection feature (detects images below 10KB)
 - v3.0: CSV keys are reconixed dynamically after CSV data are inserted & Hotfix image links normalization
