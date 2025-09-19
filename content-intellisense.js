@@ -380,13 +380,12 @@ class ContentIntellisenseSystem {
 			if (this.bestHint && this.currentInput) {
 				e.preventDefault();
 				e.stopPropagation();
-				// Use same replacement logic as list acceptance: replace prev+current tokens when applicable
+				// Always replace prev+current tokens when we have a multi-word prefix typed
 				const twoWordPref = (this._multiWordPrefix || '').trim();
-				const twoWordMatch = twoWordPref && String(this.bestHint).toLowerCase().startsWith(twoWordPref.toLowerCase());
 				if (this.currentInput.isContentEditable) {
-					this.replacePrefixInContentEditableBySuffix(this.currentInput, twoWordMatch ? twoWordPref : null, this.bestHint);
+					this.replacePrefixInContentEditableBySuffix(this.currentInput, twoWordPref || null, this.bestHint);
 				} else {
-					this.replacePrefixInInputBySuffix(this.currentInput, twoWordMatch ? twoWordPref : null, this.bestHint);
+					this.replacePrefixInInputBySuffix(this.currentInput, twoWordPref || null, this.bestHint);
 				}
 				this.hideSuggestions();
 				this.removeGhostHighlight(this.currentInput);
@@ -634,6 +633,7 @@ class ContentIntellisenseSystem {
             const closeBtn = document.createElement('button');
             closeBtn.textContent = '×';
             closeBtn.title = 'Remove suggestion';
+            closeBtn.type = 'button';
             closeBtn.style.cssText = `
                 border: none !important;
                 background: transparent !important;
@@ -645,7 +645,9 @@ class ContentIntellisenseSystem {
             `;
             // prevent parent pointerdown handler
             closeBtn.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
+            closeBtn.addEventListener('mousedown', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
             closeBtn.addEventListener('click', async (ev) => {
+                ev.preventDefault();
                 ev.stopPropagation();
                 await this.deleteSuggestion(text);
                 this.showSuggestions(query, this.currentInput || document.activeElement);
@@ -926,17 +928,13 @@ class ContentIntellisenseSystem {
         }
     }
 
-	// Delete a suggestion from the global profile (case-insensitive)
+	// Delete a suggestion from the global profile (case/whitespace-insensitive)
     async deleteSuggestion(suggestion) {
-        const target = String(suggestion).toLowerCase();
-        let removed = false;
-        for (let i = this.suggestions.length - 1; i >= 0; i--) {
-            if (String(this.suggestions[i]).toLowerCase() === target) {
-                this.suggestions.splice(i, 1);
-                removed = true;
-            }
-        }
-        if (removed) {
+        const normalize = (s) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+        const target = normalize(suggestion);
+        const beforeLen = this.suggestions.length;
+        this.suggestions = this.suggestions.filter(item => normalize(item) !== target);
+        if (this.suggestions.length !== beforeLen) {
             await this.saveSiteProfile();
         }
     }
