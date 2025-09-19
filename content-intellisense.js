@@ -15,7 +15,6 @@ class ContentIntellisenseSystem {
         this._justAutofilled = false;
         this._atLineStart = false;
         this._multiWordPrefix = '';
-        this._bestHintMeta = null; // { text, matchStart, matchLen }
         this.init();
     }
 
@@ -211,12 +210,10 @@ class ContentIntellisenseSystem {
         this._multiWordPrefix = '';
         if (prevWord && currentWord) {
             const prefix = (prevWord + ' ' + currentWord).trim();
-            if (prefix.length >= 2) this._multiWordPrefix = prefix; // allow quotes when two tokens exist
+            if (prefix.length >= 3) this._multiWordPrefix = prefix;
         }
-        // Check for ghost highlighting using best prefix (multi-word or single)
         this.checkGhostHighlighting(e.target, currentWord);
-        
-        if (currentWord.length >= 1) {
+        if (currentWord.length >= 2) {
             this.showSuggestions(currentWord, e.target);
         } else {
             this.hideSuggestions();
@@ -224,50 +221,33 @@ class ContentIntellisenseSystem {
     }
 
 	checkGhostHighlighting(inputElement, currentWord) {
-        if ((currentWord || '').length < 1 && (!this._multiWordPrefix || this._multiWordPrefix.length < 2)) {
+        if (currentWord.length < 2) {
             this.removeGhostHighlight(inputElement);
-            this.bestHint = '';
-            this._bestHintMeta = null;
+			this.bestHint = '';
             return;
         }
-        const tryPrefixes = [];
-        if (this._multiWordPrefix && this._multiWordPrefix.length >= 2) tryPrefixes.push(this._multiWordPrefix);
-        if (currentWord && currentWord.length >= 1) tryPrefixes.push(currentWord);
-        let best = null;
-        for (const pref of tryPrefixes) {
-            const lower = pref.toLowerCase();
-            // First, try simple startsWith
-            const starts = this.suggestions.find(s => String(s).toLowerCase().startsWith(lower));
-            if (starts) {
-                best = { text: String(starts), matchStart: 0, matchLen: lower.length };
-                break;
-            }
-            // Then try two-word anywhere
-            if (pref.includes(' ')) {
-                for (const s of this.suggestions) {
-                    const meta = this.findTwoWordMatchAnywhere(String(s), lower);
-                    if (meta) { best = { text: String(s), matchStart: meta.matchStart, matchLen: meta.matchLen }; break; }
-                }
-                if (best) break;
-            }
-        }
-        if (best) {
-            this.bestHint = best.text;
-            this._bestHintMeta = best;
-            // For ghost, show remainder after the matched currentPrefix portion
-            const usedPrefixLen = best.matchLen;
-            const usedStart = best.matchStart;
-            this.showGhostHighlight(inputElement, { text: best.text, fromIndex: usedStart + usedPrefixLen });
+
+        // Find matching saved suggestions
+        const matchingSuggestions = this.suggestions.filter(suggestion =>
+            suggestion.toLowerCase().startsWith(currentWord.toLowerCase())
+        );
+
+		if (matchingSuggestions.length > 0) {
+            // Get the best match (first one that starts with the current word)
+			const bestMatch = matchingSuggestions[0];
+			this.bestHint = bestMatch;
+			this.showGhostHighlight(inputElement, currentWord, bestMatch);
         } else {
-            this.removeGhostHighlight(inputElement);
-            this.bestHint = '';
-            this._bestHintMeta = null;
+			this.removeGhostHighlight(inputElement);
+			this.bestHint = '';
         }
     }
 
-	showGhostHighlight(inputElement, info) {
-        // info: { text, fromIndex } where fromIndex is where remainder should start
+	showGhostHighlight(inputElement, currentWord, fullSuggestion) {
+        // Remove existing ghost highlight
         this.removeGhostHighlight(inputElement);
+        
+        // Create ghost text element
         const ghostText = document.createElement('span');
         ghostText.id = 'content-intellisense-ghost';
         ghostText.style.cssText = `
@@ -280,12 +260,16 @@ class ContentIntellisenseSystem {
             user-select: none;
             white-space: pre;
         `;
+        
+        // Position the ghost text at the caret position for any editable element
         const caretRect = this.getCaretClientRect(inputElement);
         ghostText.style.left = caretRect.left + 'px';
         ghostText.style.top = caretRect.top + 'px';
-        const from = Math.max(0, info && typeof info.fromIndex === 'number' ? info.fromIndex : 0);
-        const remainingText = String(info && info.text ? info.text : '').substring(from);
+        
+        // Set the ghost text content (only the part that extends beyond current word)
+        const remainingText = fullSuggestion.substring(currentWord.length);
         ghostText.textContent = remainingText;
+        
         document.body.appendChild(ghostText);
     }
 
@@ -369,24 +353,12 @@ class ContentIntellisenseSystem {
 					const match = (this.suggestions || []).find(s => s.toLowerCase().startsWith(currentWord.toLowerCase()));
 					if (match) this.bestHint = match;
 				}
-				// also try two-word
-				if (!this.bestHint && this._multiWordPrefix && this._multiWordPrefix.length >= 2) {
-					const mwLower = this._multiWordPrefix.toLowerCase();
-					const mwMatch = (this.suggestions || []).find(s => String(s).toLowerCase().startsWith(mwLower));
-					if (mwMatch) this.bestHint = mwMatch;
-				}
 			}
 
 			if (this.bestHint && this.currentInput) {
 				e.preventDefault();
 				e.stopPropagation();
-				// Always replace prev+current tokens when we have a multi-word prefix typed
-				const twoWordPref = (this._multiWordPrefix || '').trim();
-				if (this.currentInput.isContentEditable) {
-					this.replacePrefixInContentEditableBySuffix(this.currentInput, twoWordPref || null, this.bestHint);
-				} else {
-					this.replacePrefixInInputBySuffix(this.currentInput, twoWordPref || null, this.bestHint);
-				}
+				this.replaceCurrentWordWith(this.currentInput, this.bestHint);
 				this.hideSuggestions();
 				this.removeGhostHighlight(this.currentInput);
 				this.saveOnTabPress(this.getElementTextValue(this.currentInput), this.bestHint);
@@ -421,45 +393,17 @@ class ContentIntellisenseSystem {
     }
 
     // Replace the current word at caret with provided text for both input-like and contenteditable
-    replaceCurrentWordWith(element, replacementText, coverTwoWords) {
+    replaceCurrentWordWith(element, replacementText) {
         if (!element) return;
         if (element.isContentEditable) {
             const sel = window.getSelection();
             if (!sel || sel.rangeCount === 0) return;
             let range = sel.getRangeAt(0);
-            // If there is a selection, replace it fully
-            if (!range.collapsed) {
-                this.insertTextFragmentAtRange(range, replacementText);
-                element.dispatchEvent(new Event('input', { bubbles: true }));
-                element.dispatchEvent(new Event('change', { bubbles: true }));
-                return;
-            }
-            // Try using selection.modify to expand by word(s) across nodes
-            try {
-                sel.modify('extend', 'backward', 'word');
-                if (coverTwoWords) sel.modify('extend', 'backward', 'word');
-                range = sel.getRangeAt(0);
-                this.insertTextFragmentAtRange(range, replacementText);
-                // Collapse after inserted text
-                sel.removeAllRanges();
-                const after = document.createRange();
-                if (range.endContainer) {
-                    const endNode = range.endContainer;
-                    const endOffset = range.endOffset;
-                    after.setStart(endNode, endOffset);
-                    after.collapse(true);
-                    sel.addRange(after);
-                }
-                element.dispatchEvent(new Event('input', { bubbles: true }));
-                element.dispatchEvent(new Event('change', { bubbles: true }));
-                return;
-            } catch (e) {
-                // Fallback to manual within-node replacement
-            }
-            // Fallback manual logic (single-node only)
+            // Ensure we operate on a text node
             let node = range.startContainer;
             let offset = range.startOffset;
             if (node.nodeType !== Node.TEXT_NODE) {
+                // Try to find nearest text node
                 if (node.firstChild && node.firstChild.nodeType === Node.TEXT_NODE) {
                     node = node.firstChild;
                     offset = Math.min(offset, (node.textContent || '').length);
@@ -472,16 +416,12 @@ class ContentIntellisenseSystem {
             }
             const text = node.textContent || '';
             offset = Math.max(0, Math.min(offset, text.length));
+            // Find word boundaries
             let wordStart = offset;
             let wordEnd = offset;
             while (wordStart > 0 && !/\s/.test(text.charAt(wordStart - 1))) wordStart--;
             while (wordEnd < text.length && !/\s/.test(text.charAt(wordEnd))) wordEnd++;
-            if (coverTwoWords) {
-                let ws = wordStart;
-                while (ws > 0 && /\s/.test(text.charAt(ws - 1))) ws--;
-                while (ws > 0 && !/\s/.test(text.charAt(ws - 1))) ws--;
-                wordStart = ws;
-            }
+            // Delete current word
             const pre = document.createTextNode(text.substring(0, wordStart));
             const post = document.createTextNode(text.substring(wordEnd));
             const parent = node.parentNode;
@@ -489,8 +429,15 @@ class ContentIntellisenseSystem {
             parent.insertBefore(pre, node);
             parent.insertBefore(post, node.nextSibling);
             parent.removeChild(node);
-            const fragment = this.buildMultilineFragment(replacementText);
+            // Build fragment with line breaks
+            const fragment = document.createDocumentFragment();
+            const parts = String(replacementText).split(/\r?\n/);
+            parts.forEach((part, idx) => {
+                fragment.appendChild(document.createTextNode(part));
+                if (idx < parts.length - 1) fragment.appendChild(document.createElement('br'));
+            });
             parent.insertBefore(fragment, post);
+            // Place caret after inserted content
             const newCaretNode = post.previousSibling && post.previousSibling.nodeType === Node.TEXT_NODE ? post.previousSibling : post;
             const newOffset = newCaretNode.nodeType === Node.TEXT_NODE ? (newCaretNode.textContent || '').length : 0;
             const afterRange = document.createRange();
@@ -503,96 +450,80 @@ class ContentIntellisenseSystem {
             return;
         }
         // Input/Textarea path
-        this.replaceTypedInInput(element, replacementText, coverTwoWords);
+        const value = element.value || '';
+        const cursorPosition = element.selectionStart || 0;
+        const beforeCursor = value.substring(0, cursorPosition);
+        const words = beforeCursor.split(/\s+/);
+        const currentWord = words[words.length - 1] || '';
+        const replaceStart = beforeCursor.length - currentWord.length;
+        const replaceEnd = cursorPosition;
+        this.typeTextIntoInput(element, replacementText, replaceStart, replaceEnd);
     }
 
     showSuggestions(query, inputElement) {
         const qLower = query.toLowerCase();
         const mwLower = (this._multiWordPrefix || '').toLowerCase();
-        // Collect candidates with metadata
-        const set = new Map(); // text -> meta
-        const addCandidate = (text, matchStart, matchLen) => {
-            if (!set.has(text)) set.set(text, { text, matchStart, matchLen });
-        };
+        // Base: starts with current word
+        let set = new Map();
         for (const s of this.suggestions) {
-            const sStr = String(s);
-            const sl = sStr.toLowerCase();
-            if (sl.startsWith(qLower)) {
-                addCandidate(sStr, 0, qLower.length);
-            }
+            const sl = String(s).toLowerCase();
+            if (sl.startsWith(qLower)) set.set(s, 'single');
         }
+        // Also include multi-word prefix matches when available
         if (mwLower) {
             for (const s of this.suggestions) {
-                const sStr = String(s);
-                const meta = this.findTwoWordMatchAnywhere(sStr, mwLower);
-                if (meta) addCandidate(sStr, meta.matchStart, meta.matchLen);
+                const sl = String(s).toLowerCase();
+                if (sl.startsWith(mwLower)) set.set(s, 'multi');
             }
         }
-        let candidates = Array.from(set.values());
-        if (candidates.length === 0) {
+        let filteredSuggestions = Array.from(set.keys());
+        if (filteredSuggestions.length === 0) {
             this.hideSuggestions();
             return;
         }
-        // Prioritize: multi-word anywhere first when applicable, then shorter
-        candidates.sort((a, b) => {
-            const aMulti = a.matchStart > 0 || (mwLower && a.matchLen >= (mwLower.split(' ')[1] || '').length);
-            const bMulti = b.matchStart > 0 || (mwLower && b.matchLen >= (mwLower.split(' ')[1] || '').length);
-            if (aMulti !== bMulti) return aMulti ? -1 : 1;
-            // prefer those whose match starts closer to caret context: start-of-string first
-            if (a.matchStart !== b.matchStart) return a.matchStart - b.matchStart;
-            return a.text.length - b.text.length;
-        });
-        candidates = candidates.slice(0, 10);
+        // Prioritize: if at line start prefer multi-word; otherwise still put multi prefix matches on top
+        if (mwLower) {
+            filteredSuggestions.sort((a, b) => {
+                const al = String(a).toLowerCase();
+                const bl = String(b).toLowerCase();
+                const aMulti = al.startsWith(mwLower);
+                const bMulti = bl.startsWith(mwLower);
+                if (aMulti !== bMulti) return aMulti ? -1 : 1;
+                // then shorter first to show tighter matches
+                return a.length - b.length;
+            });
+        } else if (this._atLineStart) {
+            filteredSuggestions.sort((a, b) => {
+                const aMulti = /\s/.test(a);
+                const bMulti = /\s/.test(b);
+                if (aMulti !== bMulti) return aMulti ? -1 : 1;
+                return a.length - b.length;
+            });
+        }
+        filteredSuggestions = filteredSuggestions.slice(0, 10);
         this.suggestionIndex = -1;
-        this.renderSuggestionsWithMeta(candidates, query, this._multiWordPrefix);
+        this.renderSuggestions(filteredSuggestions, query, this._multiWordPrefix);
         this.positionSuggestionBox(inputElement);
         this.isActive = true;
     }
 
-    // Find two-word match anywhere: prev + space + currentPrefix at any position
-    findTwoWordMatchAnywhere(suggestion, twoWordPrefixLower) {
-        const s = String(suggestion);
-        const sl = s.toLowerCase();
-        const parts = twoWordPrefixLower.split(/\s+/);
-        if (parts.length < 2) return null;
-        const prev = parts[0];
-        const currPref = parts[1];
-        // Walk tokens with indices
-        const tokenRegex = /\b\w+\b/g;
-        let m; const tokens = [];
-        while ((m = tokenRegex.exec(sl)) !== null) {
-            tokens.push({ word: sl.substring(m.index, m.index + m[0].length), start: m.index, end: m.index + m[0].length });
-        }
-        for (let i = 0; i < tokens.length - 1; i++) {
-            const t1 = tokens[i];
-            const t2 = tokens[i + 1];
-            if (t1.word === prev && t2.word.startsWith(currPref)) {
-                // matchStart at start of second token, matchLen = currentPrefix length
-                return { matchStart: t2.start, matchLen: currPref.length };
-            }
-        }
-        return null;
-    }
-
-    renderSuggestionsWithMeta(candidates, query, multiPrefix) {
+    renderSuggestions(suggestions, query) {
         this.suggestionBox.innerHTML = '';
+    
+        // keep strong contrast and top layer
         this.suggestionBox.style.background = 'white';
         this.suggestionBox.style.color = '#111';
         this.suggestionBox.style.border = '1px solid #ccc';
         this.suggestionBox.style.zIndex = '2147483647';
         this.suggestionBox.style.boxShadow = '0 2px 10px rgba(0,0,0,0.25)';
         this.suggestionBox.style.pointerEvents = 'auto';
-
+    
         const qLower = (query || '').toLowerCase();
-        const mwLower = (multiPrefix || '').toLowerCase();
-
-        candidates.forEach((cand, index) => {
-            const { text, matchStart, matchLen } = cand;
+    
+        suggestions.forEach((suggestion, index) => {
             const item = document.createElement('div');
             item.className = 'suggestion-item';
-            item.dataset.value = text;
-            item.dataset.matchStart = String(matchStart == null ? -1 : matchStart);
-            item.dataset.matchLen = String(matchLen == null ? 0 : matchLen);
+            item.dataset.value = suggestion;
             item.style.cssText = `
                 padding: 8px 12px !important;
                 cursor: pointer !important;
@@ -605,35 +536,38 @@ class ContentIntellisenseSystem {
                 color: #111 !important;
                 user-select: none !important;
             `;
+    
+            // Accept on pointerdown only when the target is NOT the remove button
             item.addEventListener('pointerdown', (ev) => {
+                // if the original click was on the × button or inside it, do nothing here
+                if (ev.target && ev.target.closest('.suggestion-remove')) {
+                    return; // let the button's own handler run
+                }
                 ev.preventDefault();
                 ev.stopPropagation();
                 this.suggestionIndex = index;
                 if (!this.currentInput) this.currentInput = document.activeElement;
                 this.acceptSuggestion();
             }, { capture: true });
-
+    
             const textSpan = document.createElement('span');
             textSpan.className = 'suggestion-text';
             textSpan.style.cssText = 'color:#111 !important;';
-            const s = String(text);
-            if (matchStart != null && matchStart >= 0 && matchLen > 0) {
-                const before = s.substring(0, matchStart);
-                const match = s.substring(matchStart, matchStart + matchLen);
-                const after = s.substring(matchStart + matchLen);
-                textSpan.innerHTML = `${this.escapeHtml(before)}<strong>${this.escapeHtml(match)}</strong>${this.escapeHtml(after)}`;
-            } else if (qLower && s.toLowerCase().startsWith(qLower)) {
+            const s = String(suggestion);
+            if (qLower && s.toLowerCase().startsWith(qLower)) {
                 const prefix = s.substring(0, qLower.length);
                 const rest = s.substring(qLower.length);
                 textSpan.innerHTML = `<strong>${this.escapeHtml(prefix)}</strong>${this.escapeHtml(rest)}`;
             } else {
                 textSpan.textContent = s;
             }
-
+    
+            // Safe delete (×) button
             const closeBtn = document.createElement('button');
+            closeBtn.className = 'suggestion-remove';   // <- used by the guard above
+            closeBtn.type = 'button';
             closeBtn.textContent = '×';
             closeBtn.title = 'Remove suggestion';
-            closeBtn.type = 'button';
             closeBtn.style.cssText = `
                 border: none !important;
                 background: transparent !important;
@@ -642,27 +576,41 @@ class ContentIntellisenseSystem {
                 line-height: 1 !important;
                 cursor: pointer !important;
                 padding: 0 4px !important;
+                z-index: 2147483647 !important;
             `;
-            // prevent parent pointerdown handler
-            closeBtn.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
-            closeBtn.addEventListener('mousedown', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
+    
+            // Don’t let the button trigger parent handlers or blur the input
+            closeBtn.addEventListener('pointerdown', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }, true);
+            closeBtn.addEventListener('mousedown', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }, true);
+    
             closeBtn.addEventListener('click', async (ev) => {
                 ev.preventDefault();
                 ev.stopPropagation();
-                await this.deleteSuggestion(text);
+                await this.deleteSuggestion(suggestion);
                 this.showSuggestions(query, this.currentInput || document.activeElement);
             });
-
+    
             item.appendChild(textSpan);
             item.appendChild(closeBtn);
+    
             item.addEventListener('mouseenter', () => {
                 this.suggestionIndex = index;
                 this.updateHighlight();
             });
+    
             this.suggestionBox.appendChild(item);
         });
+    
         this.suggestionBox.style.display = 'block';
     }
+    
+    
 
     positionSuggestionBox(inputElement) {
         const rect = inputElement.getBoundingClientRect();
@@ -699,42 +647,42 @@ class ContentIntellisenseSystem {
 
 	acceptSuggestion() {
         if (this.suggestionIndex < 0 || !this.currentInput) return;
+    
         const items = this.suggestionBox.querySelectorAll('.suggestion-item');
-        if (items.length === 0) return;
+        if (!items.length) return;
+    
         const selectedItem = items[this.suggestionIndex];
-        const selectedSuggestion = selectedItem && selectedItem.dataset ? selectedItem.dataset.value : items[this.suggestionIndex].textContent;
-
+        // Pull the true value; fall back to span text if dataset missing
+        const selectedSuggestion =
+            (selectedItem && selectedItem.dataset && selectedItem.dataset.value) ||
+            (selectedItem.querySelector('.suggestion-text')?.textContent || '');
+    
         if (this.currentInput.isContentEditable) {
-            const { text, nodes, caretOffset } = this.getContentEditableInfo(this.currentInput);
-            const { start, end } = this.computePrevAndCurrentTokenSpan(text, caretOffset);
-            const range = this.buildRangeForOffsets(this.currentInput, nodes, start, end);
-            this.insertTextFragmentAtRange(range, selectedSuggestion);
-            const sel = window.getSelection();
-            if (sel) {
-                sel.removeAllRanges();
-                const after = document.createRange();
-                if (range.endContainer) {
-                    after.setStart(range.endContainer, range.endOffset);
-                    after.collapse(true);
-                    sel.addRange(after);
-                }
-            }
-            this.currentInput.dispatchEvent(new Event('input', { bubbles: true }));
-            this.currentInput.dispatchEvent(new Event('change', { bubbles: true }));
-        } else {
-            const caret = this.currentInput.selectionStart || 0;
-            const value = this.currentInput.value || '';
-            const { start, end } = this.computePrevAndCurrentTokenSpan(value, caret);
-            this.typeTextIntoInput(this.currentInput, selectedSuggestion, start, end);
+            this.replaceCurrentWordWith(this.currentInput, selectedSuggestion);
+            this.hideSuggestions();
+            this.removeGhostHighlight(this.currentInput);
+            this.saveOnTabPress(this.getElementTextValue(this.currentInput), selectedSuggestion);
+            return;
         }
-
+    
+        const value = this.currentInput.value || '';
+        const cursorPosition = this.currentInput.selectionStart || 0;
+        const beforeCursor = value.substring(0, cursorPosition);
+        const words = beforeCursor.split(/\s+/);
+        const currentWord = words[words.length - 1] || '';
+        const replaceStart = Math.max(0, beforeCursor.length - currentWord.length);
+        const replaceEnd = cursorPosition;
+    
+        this.typeTextIntoInput(this.currentInput, selectedSuggestion, replaceStart, replaceEnd);
+    
         this.hideSuggestions();
         this.removeGhostHighlight(this.currentInput);
         this.saveOnTabPress(this.getElementTextValue(this.currentInput), selectedSuggestion);
-        if (!this.currentInput.isContentEditable) {
-            this.currentInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+    
+        // ensure any listeners update
+        this.currentInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
+    
 
 	// Simulate real typing into an input by dispatching keyboard and input events
 	typeTextIntoInput(inputElement, textToType, selectionStart, selectionEnd) {
@@ -878,8 +826,19 @@ class ContentIntellisenseSystem {
 
     // Show visual feedback when something is saved
     showSaveFeedback() {
-        // Purged green blinking; keep silent to avoid visual noise
-        return;
+        if (this.currentInput) {
+            // Create a green flash effect
+            const originalBorder = this.currentInput.style.border;
+            const originalBackground = this.currentInput.style.backgroundColor;
+            
+            this.currentInput.style.border = '2px solid #4CAF50';
+            this.currentInput.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
+            
+            setTimeout(() => {
+                this.currentInput.style.border = originalBorder;
+                this.currentInput.style.backgroundColor = originalBackground;
+            }, 300);
+        }
     }
 
     // Extract meaningful phrases from text
@@ -928,13 +887,11 @@ class ContentIntellisenseSystem {
         }
     }
 
-	// Delete a suggestion from the global profile (case/whitespace-insensitive)
+	// Delete a suggestion from the global profile
     async deleteSuggestion(suggestion) {
-        const normalize = (s) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
-        const target = normalize(suggestion);
-        const beforeLen = this.suggestions.length;
-        this.suggestions = this.suggestions.filter(item => normalize(item) !== target);
-        if (this.suggestions.length !== beforeLen) {
+        const idx = this.suggestions.indexOf(suggestion);
+        if (idx !== -1) {
+            this.suggestions.splice(idx, 1);
             await this.saveSiteProfile();
         }
     }
@@ -970,244 +927,6 @@ class ContentIntellisenseSystem {
     // Minimal HTML escape for safe innerHTML usage
     escapeHtml(str) {
         return String(str).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
-    }
-
-    // Replace typed text in input/textarea for one or two words
-    replaceTypedInInput(element, replacementText, coverTwoWords) {
-        const value = element.value || '';
-        const caret = element.selectionStart || 0;
-        const before = value.substring(0, caret);
-        // find current word start
-        let i = before.length;
-        while (i > 0 && !/\s/.test(before.charAt(i - 1))) i--;
-        let start = i;
-        if (coverTwoWords) {
-            // skip spaces before previous word
-            while (start > 0 && /\s/.test(before.charAt(start - 1))) start--;
-            // move over previous word
-            while (start > 0 && !/\s/.test(before.charAt(start - 1))) start--;
-        }
-        this.typeTextIntoInput(element, replacementText, start, caret);
-    }
-
-    buildMultilineFragment(text) {
-        const fragment = document.createDocumentFragment();
-        const parts = String(text).split(/\r?\n/);
-        parts.forEach((part, idx) => {
-            fragment.appendChild(document.createTextNode(part));
-            if (idx < parts.length - 1) fragment.appendChild(document.createElement('br'));
-        });
-        return fragment;
-    }
-
-    insertTextFragmentAtRange(range, text) {
-        range.deleteContents();
-        const frag = this.buildMultilineFragment(text);
-        range.insertNode(frag);
-    }
-
-    getCurrentWord() {
-        if (!this.currentInput) return '';
-        if (this.currentInput.isContentEditable) {
-            const sel = window.getSelection();
-            if (sel && sel.rangeCount > 0) {
-                const range = sel.getRangeAt(0);
-                const text = (range.startContainer.textContent || '');
-                const before = text.substring(0, range.startOffset);
-                const parts = before.split(/\s+/);
-                return parts[parts.length - 1] || '';
-            }
-            return '';
-        }
-        const value = this.currentInput.value || '';
-        const caret = this.currentInput.selectionStart || 0;
-        const before = value.substring(0, caret);
-        const parts = before.split(/\s+/);
-        return parts[parts.length - 1] || '';
-    }
-
-    // Compute start index for typed span (prev+current or just current)
-    computeTypedSpanStartInInput(input, useTwo) {
-        const value = input.value || '';
-        const caret = input.selectionStart || 0;
-        let i = caret;
-        // find start of current token
-        while (i > 0 && !/\s/.test(value.charAt(i - 1))) i--;
-        let currentStart = i;
-        if (!useTwo) return currentStart;
-        // skip spaces before previous token
-        while (i > 0 && /\s/.test(value.charAt(i - 1))) i--;
-        // find start of previous token
-        while (i > 0 && !/\s/.test(value.charAt(i - 1))) i--;
-        return i;
-    }
-
-    replacePrefixInInput(input, useTwo, replacementText) {
-        const caret = input.selectionStart || 0;
-        const start = this.computeTypedSpanStartInInput(input, useTwo);
-        this.typeTextIntoInput(input, replacementText, start, caret);
-    }
-
-    // Replacement using suffix match to cover prev+current tokens reliably (inputs/textareas)
-    replacePrefixInInputBySuffix(input, twoWordPrefixOrNull, replacementText) {
-        const value = input.value || '';
-        const caret = input.selectionStart || 0;
-        const before = value.substring(0, caret);
-        const beforeLower = before.toLowerCase();
-        let start = caret;
-        if (twoWordPrefixOrNull) {
-            const prefLower = twoWordPrefixOrNull.toLowerCase();
-            const idx = beforeLower.lastIndexOf(prefLower);
-            if (idx !== -1 && idx + prefLower.length === beforeLower.length) {
-                start = idx;
-            } else {
-                // Fallback to token-based two-word
-                start = this.computeTypedSpanStartInInput(input, true);
-            }
-        } else {
-            // single word suffix
-            const current = this.getCurrentWord();
-            const curLower = current.toLowerCase();
-            const idx = beforeLower.lastIndexOf(curLower);
-            if (idx !== -1 && idx + curLower.length === beforeLower.length) {
-                start = idx;
-            } else {
-                start = this.computeTypedSpanStartInInput(input, false);
-            }
-        }
-        this.typeTextIntoInput(input, replacementText, start, caret);
-    }
-
-    // Helpers for contenteditable standard replacement
-    getContentEditableInfo(root) {
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
-        let text = '';
-        const nodes = [];
-        while (walker.nextNode()) {
-            const n = walker.currentNode;
-            const t = n.textContent || '';
-            nodes.push({ node: n, start: text.length, end: text.length + t.length });
-            text += t;
-        }
-        const sel = window.getSelection();
-        let caretOffset = 0;
-        if (sel && sel.rangeCount > 0) {
-            const r = sel.getRangeAt(0);
-            const anchor = r.startContainer;
-            const offset = r.startOffset;
-            const entry = nodes.find(en => en.node === anchor);
-            if (entry) caretOffset = entry.start + offset;
-        }
-        return { text, nodes, caretOffset };
-    }
-
-    findTypedSpanStartInText(text, caretOffset, useTwo) {
-        // find start of current token
-        let i = caretOffset;
-        while (i > 0 && !/\s/.test(text.charAt(i - 1))) i--;
-        let currentStart = i;
-        if (!useTwo) return currentStart;
-        // skip spaces
-        while (i > 0 && /\s/.test(text.charAt(i - 1))) i--;
-        // find start of previous token
-        while (i > 0 && !/\s/.test(text.charAt(i - 1))) i--;
-        return i;
-    }
-
-    buildRangeForOffsets(root, nodes, start, end) {
-        const range = document.createRange();
-        const findPos = (pos) => {
-            for (const en of nodes) {
-                if (pos <= en.end) {
-                    const local = Math.max(0, pos - en.start);
-                    return { container: en.node, offset: local };
-                }
-            }
-            const last = nodes[nodes.length - 1];
-            return { container: last.node, offset: (last.node.textContent || '').length };
-        };
-        const s = findPos(start);
-        const e = findPos(end);
-        range.setStart(s.container, s.offset);
-        range.setEnd(e.container, e.offset);
-        return range;
-    }
-
-    replacePrefixInContentEditable(root, useTwo, replacementText) {
-        const { text, nodes, caretOffset } = this.getContentEditableInfo(root);
-        const start = this.findTypedSpanStartInText(text, caretOffset, useTwo);
-        const end = caretOffset;
-        const range = this.buildRangeForOffsets(root, nodes, start, end);
-        this.insertTextFragmentAtRange(range, replacementText);
-        const sel = window.getSelection();
-        if (sel) {
-            sel.removeAllRanges();
-            const after = document.createRange();
-            if (range.endContainer) {
-                after.setStart(range.endContainer, range.endOffset);
-                after.collapse(true);
-                sel.addRange(after);
-            }
-        }
-        root.dispatchEvent(new Event('input', { bubbles: true }));
-        root.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    // Replacement using suffix match for contenteditable
-    replacePrefixInContentEditableBySuffix(root, twoWordPrefixOrNull, replacementText) {
-        const { text, nodes, caretOffset } = this.getContentEditableInfo(root);
-        const lower = text.toLowerCase();
-        let start = caretOffset;
-        if (twoWordPrefixOrNull) {
-            const prefLower = twoWordPrefixOrNull.toLowerCase();
-            const idx = lower.lastIndexOf(prefLower, caretOffset);
-            if (idx !== -1 && idx + prefLower.length === caretOffset) {
-                start = idx;
-            } else {
-                start = this.findTypedSpanStartInText(text, caretOffset, true);
-            }
-        } else {
-            // single
-            // find current token
-            let i = caretOffset;
-            while (i > 0 && !/\s/.test(text.charAt(i - 1))) i--;
-            start = i;
-        }
-        const end = caretOffset;
-        const range = this.buildRangeForOffsets(root, nodes, start, end);
-        this.insertTextFragmentAtRange(range, replacementText);
-        const sel = window.getSelection();
-        if (sel) {
-            sel.removeAllRanges();
-            const after = document.createRange();
-            if (range.endContainer) {
-                after.setStart(range.endContainer, range.endOffset);
-                after.collapse(true);
-                sel.addRange(after);
-            }
-        }
-        root.dispatchEvent(new Event('input', { bubbles: true }));
-        root.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    // Compute span covering previous token + single space(s) + current token, ending at caret.
-    // If there is no previous token, returns current token span only.
-    computePrevAndCurrentTokenSpan(fullText, caretOffset) {
-        const text = String(fullText);
-        let end = caretOffset;
-        // current token start
-        let curStart = end;
-        while (curStart > 0 && !/\s/.test(text.charAt(curStart - 1))) curStart--;
-        // skip spaces before previous token
-        let i = curStart;
-        while (i > 0 && /\s/.test(text.charAt(i - 1))) i--;
-        // previous token start
-        let prevStart = i;
-        while (prevStart > 0 && !/\s/.test(text.charAt(prevStart - 1))) prevStart--;
-        // Determine if we truly have two tokens: previous token exists and directly precedes current separated only by spaces
-        const hasPrev = prevStart < i;
-        const start = hasPrev ? prevStart : curStart;
-        return { start, end };
     }
 }
 
