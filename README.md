@@ -71,7 +71,7 @@ Module003 Guide > https://i.gyazo.com/01bcde274738404aeabef2402b78b0fe.gif
 3. Copy the ul element with li inside
 4. Paste here (should follow this structure):
 
-## Feature005: LeadBox Admin Printer
+## Feature005: IMS Internals Leads Printer Icon
 Automatically adds printer icons to leads list in the admin panel.
 
 Working URLs:
@@ -87,6 +87,13 @@ Steps:
    - Access a any field
    - Type anything, click on save buttons
    - Type again, tap tab, it will autofill
+
+## Feature007: IMS Internals Leads Edit Icon
+Automatically adds printer icons to leads list in the admin panel.
+
+Working URLs:
+- https://my.leadboxhq.net/leads/internal
+- https://car-dealer-production-qa.azurewebsites.net/leads/internal
 
 # Structure
 

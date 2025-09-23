@@ -1,70 +1,43 @@
-async function isPrinterEnabled() {
-	const { featureSettings } = await chrome.storage.local.get(['featureSettings']);
-	const settings = featureSettings || { printerIcon: true };
-	return settings.printerIcon !== false;
-}
-
-function duplicateMagnifyingGlass(original) {
-    if (original.nextElementSibling?.classList?.contains('hacked-icon')) return;
-
-    const href = original.getAttribute('href');
-    if (!href) return;
-
-    const match = href.match(/previewinternallead\/([^?]+)/);
-    if (!match || !match[1]) return;
-
-    const leadId = match[1];
-    const printUrl = `https://my.leadboxhq.net/home/printlead/${leadId}`;
-
-    const printLink = document.createElement('a');
-    printLink.href = printUrl;
-    printLink.classList.add('hacked-icon');
-    printLink.style.marginLeft = '8px';
-    printLink.title = 'Print Lead';
-    printLink.setAttribute('data-action', 'preview-lead');
-    
-    const icon = document.createElement('i');
-    icon.className = 'leadbox-icon-printer';
-    printLink.appendChild(icon);
-
-    original.parentNode.insertBefore(printLink, original.nextSibling);
-}
-
-const targetUrls = [
-    'https://my.leadboxhq.net/leads/internal',
-    'https://car-dealer-production-qa.azurewebsites.net/leads/internal'
-];
-
-async function initPrinterIcon() {
-	if (!targetUrls.includes(window.location.href)) return;
-	if (!(await isPrinterEnabled())) return;
-	const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.addedNodes.length) {
-                document.querySelectorAll('a[data-action="preview-lead"]').forEach(duplicateMagnifyingGlass);
-            }
-        });
+async function isLeadsPrinterEnabled() {
+    const { featureSettings } = await chrome.storage.local.get(['featureSettings']);
+    const s = featureSettings || { leadsPrinterIcon: true };
+    return s.leadsPrinterIcon !== false;
+  }
+  function renderPrintFromPreview(a) {
+    const cell = a.closest('td'); if (!cell || !/\baction-column\b/.test(cell.className)) return;
+    if (cell.querySelector('a.lbot-print-icon')) return;
+    const m = (a.getAttribute('href')||'').match(/\/previewinternallead\/([^/?#]+)/i); if (!m) return;
+  
+    const link = document.createElement('a');
+    link.href = `${location.origin}/home/printlead/${m[1]}`;
+    link.className = 'lbot-print-icon lbot-additional-icons';
+    link.title = 'Print Lead';
+    link.style.marginLeft = '8px';
+    link.setAttribute('data-action','preview-lead'); // popup
+  
+    const i = document.createElement('i'); i.className = 'leadbox-icon-printer'; link.appendChild(i);
+  
+    const edit = cell.querySelector('a.lbot-edit-icon');
+    edit ? cell.insertBefore(link, edit.nextSibling) : a.parentNode.insertBefore(link, a.nextSibling);
+  }
+  const _PRINT_SEL = 'td.action-column a[data-action="preview-lead"][href*="previewinternallead"]';
+  let PRINT_OBS;
+  async function initLeadsPrinterIcon() {
+    if (!/\.net\/(en\/)?leads\/internal/i.test(location.href)) return;
+    if (!(await isLeadsPrinterEnabled())) return;
+    const scan = () => document.querySelectorAll(_PRINT_SEL).forEach(renderPrintFromPreview);
+    scan();
+    if (PRINT_OBS) try { PRINT_OBS.disconnect(); } catch {}
+    PRINT_OBS = new MutationObserver(ms => {
+      for (const m of ms) for (const n of m.addedNodes)
+        if (n.nodeType===1 && (n.matches?.(_PRINT_SEL) || n.querySelector?.(_PRINT_SEL))) { scan(); return; }
     });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
-    document.querySelectorAll('a[data-action="preview-lead"]').forEach(duplicateMagnifyingGlass);
-}
-
-initPrinterIcon();
-
-chrome.runtime.onMessage.addListener(async (msg) => {
-	if (msg && msg.type === 'featureSettingsUpdated') {
-		if (await isPrinterEnabled()) {
-			initPrinterIcon();
-		} else {
-			// remove injected icons
-			document.querySelectorAll('a.hacked-icon').forEach(el => el.remove());
-		}
-	}
-});
-
-
+    PRINT_OBS.observe(document.body, { childList:true, subtree:true });
+  }
+  initLeadsPrinterIcon();
+  chrome.runtime.onMessage.addListener(async (msg)=> {
+    if (msg?.type!=='featureSettingsUpdated') return;
+    if (await isLeadsPrinterEnabled()) initLeadsPrinterIcon();
+    else document.querySelectorAll('a.lbot-print-icon').forEach(el=>el.remove());
+  });
+  

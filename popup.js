@@ -116,13 +116,13 @@ const docsButton = document.querySelector('.docs-button');
 const docsPopup = document.querySelector('.docs-popup');
 let docsHideTimeout;
 
-docsButton.addEventListener('mouseenter', function() {
+docsButton.addEventListener('mouseenter', function () {
     clearTimeout(docsHideTimeout);
     docsPopup.style.display = 'block';
     setTimeout(() => docsPopup.classList.add('visible'), 10);
 });
 
-docsButton.addEventListener('mouseleave', function() {
+docsButton.addEventListener('mouseleave', function () {
     docsHideTimeout = setTimeout(() => {
         docsPopup.classList.remove('visible');
         setTimeout(() => {
@@ -133,12 +133,12 @@ docsButton.addEventListener('mouseleave', function() {
     }, 100);
 });
 
-docsPopup.addEventListener('mouseenter', function() {
+docsPopup.addEventListener('mouseenter', function () {
     clearTimeout(docsHideTimeout);
     docsPopup.classList.add('visible');
 });
 
-docsPopup.addEventListener('mouseleave', function() {
+docsPopup.addEventListener('mouseleave', function () {
     docsHideTimeout = setTimeout(() => {
         docsPopup.classList.remove('visible');
         setTimeout(() => {
@@ -153,13 +153,13 @@ const featuresButton = document.querySelector('.features-button');
 const featuresList = document.querySelector('.features-list');
 let featuresHideTimeout;
 
-featuresButton.addEventListener('mouseenter', function() {
+featuresButton.addEventListener('mouseenter', function () {
     clearTimeout(featuresHideTimeout);
     featuresList.style.display = 'block';
     setTimeout(() => featuresList.classList.add('visible'), 10);
 });
 
-featuresButton.addEventListener('mouseleave', function() {
+featuresButton.addEventListener('mouseleave', function () {
     featuresHideTimeout = setTimeout(() => {
         featuresList.classList.remove('visible');
         setTimeout(() => {
@@ -170,12 +170,12 @@ featuresButton.addEventListener('mouseleave', function() {
     }, 100);
 });
 
-featuresList.addEventListener('mouseenter', function() {
+featuresList.addEventListener('mouseenter', function () {
     clearTimeout(featuresHideTimeout);
     featuresList.classList.add('visible');
 });
 
-featuresList.addEventListener('mouseleave', function() {
+featuresList.addEventListener('mouseleave', function () {
     featuresHideTimeout = setTimeout(() => {
         featuresList.classList.remove('visible');
         setTimeout(() => {
@@ -190,34 +190,66 @@ import { exportFieldMapsToJson, importFieldMapsFromJson } from './field-map-stor
 import { exportToCSVFile } from './$csv-exporter.js';
 import { IntellisenseSystem } from './intellisense-system.js';
 
-// Settings: load and save toggles
 const SETTINGS_KEY = 'featureSettings';
+const toggleEditIconEl    = document.getElementById('toggleEditIcon');
 const togglePrinterIconEl = document.getElementById('togglePrinterIcon');
-const toggleAutofillEl = document.getElementById('toggleAutofill');
+const toggleAutofillEl    = document.getElementById('toggleAutofill');
 
 async function loadSettings() {
     const { featureSettings } = await chrome.storage.local.get([SETTINGS_KEY]);
-    const settings = featureSettings || { printerIcon: true, autofill: true };
-    if (togglePrinterIconEl) togglePrinterIconEl.checked = !!settings.printerIcon;
-    if (toggleAutofillEl) toggleAutofillEl.checked = !!settings.autofill;
+    const s = featureSettings || {};
+
+    // Back-compat reads (accept old keys if present)
+    const leadsEditIcon = (typeof s.leadsEditIcon !== 'undefined') ? s.leadsEditIcon : (typeof s.editIcon !== 'undefined' ? s.editIcon : true);
+    const leadsPrinterIcon = (typeof s.leadsPrinterIcon !== 'undefined') ? s.leadsPrinterIcon : (typeof s.printerIcon !== 'undefined' ? s.printerIcon : true);
+    const autofill = (typeof s.autofill !== 'undefined') ? s.autofill : true;
+
+    // Update the UI
+    if (toggleEditIconEl) toggleEditIconEl.checked = !!leadsEditIcon;
+    if (togglePrinterIconEl) togglePrinterIconEl.checked = !!leadsPrinterIcon;
+    if (toggleAutofillEl) toggleAutofillEl.checked = !!autofill;
+
+    // Re-save using unified keys so content scripts read the same shape
+    await chrome.storage.local.set({
+        [SETTINGS_KEY]: { ...s, leadsEditIcon, leadsPrinterIcon, autofill }
+    });
 }
 
 async function saveSettings(partial) {
     const { featureSettings } = await chrome.storage.local.get([SETTINGS_KEY]);
-    const next = { printerIcon: true, autofill: true, ...(featureSettings || {}), ...partial };
+    const next = { ...(featureSettings || {}), ...partial };
+
+    // Also mirror old keys for back-compat with any older injectors
+    if (typeof partial.leadsPrinterIcon !== 'undefined') {
+        next.printerIcon = partial.leadsPrinterIcon;
+    }
+    if (typeof partial.leadsEditIcon !== 'undefined') {
+        next.editIcon = partial.leadsEditIcon;
+    }
+
     await chrome.storage.local.set({ [SETTINGS_KEY]: next });
-    // Notify content scripts to re-evaluate
+
+    // notify active tab so content scripts refresh their gates
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tab = tabs && tabs[0];
         if (tab && tab.id) {
-            chrome.tabs.sendMessage(tab.id, { type: 'featureSettingsUpdated', settings: next });
+                        // inside saveSettings, replace sendMessage line with:
+            chrome.tabs.sendMessage(tab.id, { type: 'featureSettingsUpdated', settings: next }, () => {
+                void chrome.runtime.lastError; // swallow "no receiver" when not on a leads page
+            });
+  
         }
     });
 }
 
+if (toggleEditIconEl) {
+    toggleEditIconEl.addEventListener('change', async (e) => {
+        await saveSettings({ leadsEditIcon: e.target.checked });
+    });
+}
 if (togglePrinterIconEl) {
     togglePrinterIconEl.addEventListener('change', async (e) => {
-        await saveSettings({ printerIcon: e.target.checked });
+        await saveSettings({ leadsPrinterIcon: e.target.checked });
     });
 }
 if (toggleAutofillEl) {
@@ -262,7 +294,6 @@ document.getElementById('importFile').addEventListener('change', async (event) =
     }
 });
 
-// Intellisense System Event Handlers
 document.getElementById('exportIntellisenseProfile').addEventListener('click', async () => {
     try {
         toggleLoading(true);
