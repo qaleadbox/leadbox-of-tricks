@@ -1,6 +1,3 @@
-// Intellisense System for LeadBox of Tricks Extension
-// Provides autocomplete functionality for comments, fields, labels, and other text inputs
-
 class IntellisenseSystem {
     constructor() {
         this.currentSite = '';
@@ -21,7 +18,6 @@ class IntellisenseSystem {
 		this.loadSiteProfile();
     }
 
-    // Debounce utility function
     debounce(func, wait) {
         let timeout;
         return function executedFunction(...args) {
@@ -75,35 +71,30 @@ class IntellisenseSystem {
     }
 
     bindEvents() {
-        // Listen for keydown events on all text inputs and textareas
         document.addEventListener('keydown', (e) => {
             if (e.target.matches('input[type="text"], textarea, input[type="number"], input[type="search"], input[type="email"], input[type="password"], input[type="tel"], input[type="url"]')) {
                 this.handleKeydown(e);
             }
         });
 
-        // Listen for input events to show suggestions
         document.addEventListener('input', (e) => {
             if (e.target.matches('input[type="text"], textarea, input[type="number"], input[type="search"], input[type="email"], input[type="password"], input[type="tel"], input[type="url"]')) {
                 this.handleInput(e);
             }
         });
 
-        // Listen for focus events to show overlay
         document.addEventListener('focus', (e) => {
             if (e.target.matches('input[type="text"], textarea, input[type="number"], input[type="search"], input[type="email"], input[type="password"], input[type="tel"], input[type="url"]')) {
                 this.showOverlay(e.target);
             }
         }, true);
 
-        // Listen for blur events to hide overlay
         document.addEventListener('blur', (e) => {
             if (e.target.matches('input[type="text"], textarea, input[type="number"], input[type="search"], input[type="email"], input[type="password"], input[type="tel"], input[type="url"]')) {
                 this.hideOverlay();
             }
         }, true);
 
-        // Hide suggestions when clicking outside
         document.addEventListener('click', (e) => {
             if (!this.suggestionBox.contains(e.target) && e.target !== this.currentInput) {
                 this.hideSuggestions();
@@ -137,12 +128,10 @@ class IntellisenseSystem {
         const value = e.target.value;
         const cursorPosition = e.target.selectionStart;
         
-        // Get the word being typed
         const beforeCursor = value.substring(0, cursorPosition);
         const words = beforeCursor.split(/\s+/);
         const currentWord = words[words.length - 1] || '';
         
-        // Check for ghost highlighting
         this.checkGhostHighlighting(e.target, currentWord);
         
         if (currentWord.length >= 2) {
@@ -159,13 +148,11 @@ class IntellisenseSystem {
             return;
         }
 
-        // Find matching saved suggestions
         const matchingSuggestions = this.suggestions.filter(suggestion =>
             suggestion.toLowerCase().startsWith(currentWord.toLowerCase())
         );
 
 		if (matchingSuggestions.length > 0) {
-            // Get the best match (first one that starts with the current word)
 			const bestMatch = matchingSuggestions[0];
 			this.bestHint = bestMatch;
 			this.showGhostHighlight(inputElement, currentWord, bestMatch);
@@ -176,10 +163,8 @@ class IntellisenseSystem {
     }
 
 	showGhostHighlight(inputElement, currentWord, fullSuggestion) {
-        // Remove existing ghost highlight
         this.removeGhostHighlight(inputElement);
         
-        // Create ghost text element
         const ghostText = document.createElement('span');
         ghostText.id = 'intellisense-ghost';
         ghostText.style.cssText = `
@@ -193,7 +178,6 @@ class IntellisenseSystem {
 			white-space: pre;
         `;
         
-		// Position the ghost text at the caret position
 		const rect = inputElement.getBoundingClientRect();
 		const computedStyle = window.getComputedStyle(inputElement);
 		const paddingLeft = parseFloat(computedStyle.paddingLeft);
@@ -204,14 +188,12 @@ class IntellisenseSystem {
 		ghostText.style.left = left + 'px';
 		ghostText.style.top = (rect.top + paddingTop) + 'px';
         
-        // Set the ghost text content (only the part that extends beyond current word)
         const remainingText = fullSuggestion.substring(currentWord.length);
         ghostText.textContent = remainingText;
         
         document.body.appendChild(ghostText);
     }
 
-	// Measure text width using canvas to align ghost with caret
 	measureTextWidth(text, computedStyle) {
 		const canvas = this._measureCanvas || (this._measureCanvas = document.createElement('canvas'));
 		const ctx = canvas.getContext('2d');
@@ -228,7 +210,6 @@ class IntellisenseSystem {
     }
 
 	handleKeydown(e) {
-		// Tab should accept best hint and move focus forward
 		if (e.key === 'Tab') {
 			if (this.bestHint && this.currentInput) {
 				e.preventDefault();
@@ -239,7 +220,6 @@ class IntellisenseSystem {
 				const currentWord = words[words.length - 1] || '';
 				const replaceStart = beforeCursor.length - currentWord.length;
 				const replaceEnd = cursorPosition;
-				// Insert the full best hint (replace current word)
 				this.typeTextIntoInput(this.currentInput, this.bestHint, replaceStart, replaceEnd);
 				this.hideSuggestions();
 				this.removeGhostHighlight(this.currentInput);
@@ -247,8 +227,7 @@ class IntellisenseSystem {
 				this.moveFocusToNextElement(this.currentInput);
 				return;
 			}
-			// No hint: allow native tab
-			return; // do not preventDefault
+			return;
 		}
 
 		if (!this.isActive || !this.suggestionBox.style.display || this.suggestionBox.style.display === 'none') {
@@ -257,7 +236,6 @@ class IntellisenseSystem {
 
 		switch (e.key) {
             case 'Tab':
-				// handled above
                 break;
             case 'ArrowDown':
                 e.preventDefault();
@@ -282,7 +260,7 @@ class IntellisenseSystem {
     showSuggestions(query, inputElement) {
         const filteredSuggestions = this.suggestions.filter(suggestion =>
             suggestion.toLowerCase().includes(query.toLowerCase())
-        ).slice(0, 10); // Limit to 10 suggestions
+        ).slice(0, 10);
 
         if (filteredSuggestions.length === 0) {
             this.hideSuggestions();
@@ -380,13 +358,11 @@ class IntellisenseSystem {
 		const value = this.currentInput.value;
 		const cursorPosition = this.currentInput.selectionStart;
 		
-		// Find the current word being typed
 		const beforeCursor = value.substring(0, cursorPosition);
 		const afterCursor = value.substring(cursorPosition);
 		const words = beforeCursor.split(/\s+/);
 		const currentWord = words[words.length - 1] || '';
 		
-		// Simulate typing by replacing the current word selection and typing characters
 		const replaceStart = beforeCursor.length - currentWord.length;
 		const replaceEnd = cursorPosition;
 		this.typeTextIntoInput(this.currentInput, selectedSuggestion, replaceStart, replaceEnd);
@@ -394,32 +370,26 @@ class IntellisenseSystem {
         this.hideSuggestions();
         this.removeGhostHighlight(this.currentInput);
         
-        // Save the accepted suggestion and current input value
 		this.saveOnTabPress(this.currentInput.value, selectedSuggestion);
         
-        // Trigger input event to update any listeners
 		this.currentInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
-	// Simulate real typing into an input by dispatching keyboard and input events
 	typeTextIntoInput(inputElement, textToType, selectionStart, selectionEnd) {
 		if (!inputElement) return;
 		inputElement.focus();
 		const isTextArea = inputElement.tagName === 'TEXTAREA';
 		const valueDescriptor = Object.getOwnPropertyDescriptor(isTextArea ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value');
 		const setNativeValue = valueDescriptor && valueDescriptor.set ? (val) => valueDescriptor.set.call(inputElement, val) : (val) => { inputElement.value = val; };
-		// Select the range to replace
 		if (typeof selectionStart === 'number' && typeof selectionEnd === 'number') {
 			inputElement.setSelectionRange(selectionStart, selectionEnd);
 		}
-		// Remove current selection
 		const start = inputElement.selectionStart;
 		const end = inputElement.selectionEnd;
 		let currentValue = inputElement.value.substring(0, start) + inputElement.value.substring(end);
 		setNativeValue(currentValue);
 		inputElement.setSelectionRange(start, start);
 		inputElement.dispatchEvent(new Event('input', { bubbles: true }));
-		// Type each character using native setter so frameworks pick it up
 		for (const ch of textToType) {
 			const keydown = new KeyboardEvent('keydown', { key: ch, bubbles: true, cancelable: true });
 			inputElement.dispatchEvent(keydown);
@@ -438,11 +408,9 @@ class IntellisenseSystem {
 			const keyup = new KeyboardEvent('keyup', { key: ch, bubbles: true, cancelable: true });
 			inputElement.dispatchEvent(keyup);
 		}
-		// Fire change at the end to help forms that read value on change/submit
 		inputElement.dispatchEvent(new Event('change', { bubbles: true }));
 	}
 
-	// Move focus to the next focusable element to mimic native Tab behavior
 	moveFocusToNextElement(current) {
 		const candidates = Array.from(document.querySelectorAll('input, textarea, select, button, a[href], [tabindex]'))
 			.filter(el => !el.hasAttribute('disabled') && el.tabIndex !== -1 && el.offsetParent !== null);
@@ -453,34 +421,28 @@ class IntellisenseSystem {
 		}
 	}
 
-    // Save data only when Tab is pressed
     async saveOnTabPress(inputValue, acceptedSuggestion) {
         if (!inputValue || inputValue.trim().length === 0) return;
         
-        // Save the complete input value
         const trimmedValue = inputValue.trim();
         if (!this.suggestions.includes(trimmedValue)) {
             await this.addSuggestion(trimmedValue);
             this.showSaveFeedback();
         }
         
-        // Save the accepted suggestion
         if (!this.suggestions.includes(acceptedSuggestion)) {
             await this.addSuggestion(acceptedSuggestion);
         }
         
-        // Save individual words and phrases
         const words = trimmedValue.split(/\s+/);
         const phrases = this.extractPhrases(trimmedValue);
         
-        // Add individual words
         for (const word of words) {
             if (word.length >= 2 && !this.suggestions.includes(word)) {
                 await this.addSuggestion(word);
             }
         }
         
-        // Add phrases
         for (const phrase of phrases) {
             if (phrase.length >= 3 && !this.suggestions.includes(phrase)) {
                 await this.addSuggestion(phrase);
@@ -490,10 +452,8 @@ class IntellisenseSystem {
 
 
 
-    // Show visual feedback when something is saved
     showSaveFeedback() {
         if (this.currentInput) {
-            // Create a green flash effect
             const originalBorder = this.currentInput.style.border;
             const originalBackground = this.currentInput.style.backgroundColor;
             
@@ -507,17 +467,15 @@ class IntellisenseSystem {
         }
     }
 
-    // Extract meaningful phrases from text
     extractPhrases(text) {
         const phrases = [];
         
-        // Extract common patterns
         const patterns = [
-            /[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g, // CamelCase words
-            /[a-z]+(?:_[a-z]+)+/g, // snake_case
-            /[a-z]+(?:\-[a-z]+)+/g, // kebab-case
-            /[A-Z]+(?:_[A-Z]+)+/g, // UPPER_SNAKE_CASE
-            /[A-Z][a-z]+(?:\-[A-Z][a-z]+)*/g, // PascalCase
+            /[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g,
+            /[a-z]+(?:_[a-z]+)+/g,
+            /[a-z]+(?:\-[a-z]+)+/g,
+            /[A-Z]+(?:_[A-Z]+)+/g,
+            /[A-Z][a-z]+(?:\-[A-Z][a-z]+)*/g,
         ];
         
         patterns.forEach(pattern => {
@@ -527,7 +485,6 @@ class IntellisenseSystem {
             }
         });
         
-        // Extract quoted strings
         const quotedMatches = text.match(/"([^"]+)"/g);
         if (quotedMatches) {
             phrases.push(...quotedMatches.map(q => q.slice(1, -1)));
@@ -543,22 +500,18 @@ class IntellisenseSystem {
         this.removeGhostHighlight(this.currentInput);
     }
 
-	// Add new suggestions to the global profile
     async addSuggestion(suggestion) {
-        if (!this.suggestions.includes(suggestion)) {
-            this.suggestions.push(suggestion);
-			await this.saveSiteProfile();
-            // Show immediate feedback for new suggestions
-            this.showSaveFeedback();
-        }
+        const v = this.sanitizeText(suggestion);
+        if (!v || this.suggestions.includes(v)) return;
+        this.suggestions.push(v);
+        await this.saveSiteProfile();
+        this.showSaveFeedback();
     }
-
-	// Save the global profile
+    
     async saveSiteProfile() {
 		await chrome.storage.local.set({ intellisenseGlobalSuggestions: this.suggestions });
     }
 
-	// Export the global profile
     async exportSiteProfile() {
 		const profile = {
 			scope: 'global',
@@ -579,22 +532,40 @@ class IntellisenseSystem {
         URL.revokeObjectURL(url);
     }
 
-	// Import a profile (expects global)
     async importSiteProfile(profileData) {
+        const tryParse = async (txt) => {
+            const p = JSON.parse(txt);
+            if (Array.isArray(p.suggestions)) {
+                this.suggestions = Array.from(new Set(p.suggestions.map(x => this.sanitizeText(x)).filter(Boolean)));
+                await this.saveSiteProfile();
+                return true;
+            }
+            return false;
+        };
+    
         try {
-            const profile = JSON.parse(profileData);
-			if (profile.suggestions && Array.isArray(profile.suggestions)) {
-				this.suggestions = profile.suggestions;
-				await this.saveSiteProfile();
-				return true;
-			}
-        } catch (error) {
-            console.error('Error importing profile:', error);
+            if (await tryParse(profileData)) return true;
+        } catch {}
+    
+        try {
+            const safe = profileData.replace(/[\u0000-\u001F]/g, ch => {
+                if (ch === '\n') return '\\n';
+                if (ch === '\r') return '\\r';
+                if (ch === '\t') return '\\t';
+                return '\\u' + ch.charCodeAt(0).toString(16).padStart(4,'0');
+            });
+            if (await tryParse(safe)) return true;
+        } catch {}
+    
+        const lines = profileData.split(/\r?\n/).map(s => this.sanitizeText(s).trim()).filter(Boolean);
+        if (lines.length) {
+            this.suggestions = Array.from(new Set([...(this.suggestions||[]), ...lines]));
+            await this.saveSiteProfile();
+            return true;
         }
         return false;
     }
-
-    // Get statistics about the current profile
+    
     getProfileStats() {
         return {
             site: this.currentSite,
@@ -602,16 +573,21 @@ class IntellisenseSystem {
         };
     }
 
-    // Minimal HTML escape for safe innerHTML usage
     escapeHtml(str) {
         return String(str).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
     }
+
+    sanitizeText(s) {
+        return String(s)
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+    }
+    
 }
 
-// Initialize the intellisense system when the popup loads
 document.addEventListener('DOMContentLoaded', () => {
     window.intellisenseSystem = new IntellisenseSystem();
 });
 
-// Export for use in other modules
 export { IntellisenseSystem };
