@@ -1,12 +1,26 @@
+// $scrolling.js
+function getVehicleCardSelector() {
+    const vehicleCardV6 = document.querySelector('div.vehicle-card.vehicle-card-6');
+    const vehicleCardV12345 = document.querySelector('div.vehicle-car__section.vehicle-car-1');
+    
+    if (vehicleCardV6) {
+        return 'div.vehicle-card.vehicle-card-6';
+    } else if (vehicleCardV12345) {
+        return 'div.vehicle-car__section.vehicle-car-1';
+    }
+    return 'div.vehicle-card.vehicle-card-6, div.vehicle-car__section.vehicle-car-1';
+}
+
 window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType) {
-    let actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
+    const vehicleSelector = getVehicleCardSelector();
+    let actualElementsLoaded = document.querySelectorAll(vehicleSelector).length;
     let totalElementsLoaded = 0;
     let isMoreVehicleAvailable = true;
 
     if (actualElementsLoaded === 0) {
         console.warn('Waiting for initial vehicles to load...');
         await new Promise(resolve => setTimeout(resolve, 3000));
-        actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
+        actualElementsLoaded = document.querySelectorAll(vehicleSelector).length;
         if (actualElementsLoaded === 0) {
             console.error('No vehicles found after initial wait');
             return 0;
@@ -15,6 +29,20 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
 
     totalElementsLoaded = actualElementsLoaded;
     console.warn(`Initial load: ${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
+
+    // Process the first page if using pagination
+    if (isPaginationScrollType()) {
+        const allVehicleCards = document.querySelectorAll(vehicleSelector);
+        console.warn(`Processing first page with ${allVehicleCards.length} vehicles. Initial result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
+        
+        if (testType === "COMING_SOON_DETECTOR") {
+            await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
+        } else {
+            await window.$dataHandler(allVehicleCards, csvData, result, testType);
+        }
+        
+        console.warn(`After processing first page. Result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
+    }
 
     while (isMoreVehicleAvailable) {
         const PAGINATION_SCROLL_TYPE = isPaginationScrollType();
@@ -25,23 +53,30 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
-        actualElementsLoaded = document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').length;
+        actualElementsLoaded = document.querySelectorAll(vehicleSelector).length;
 
         if (PAGINATION_SCROLL_TYPE) {
             if (isThereANextPage()) {
-                const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
+                getPaginationArrow().click();
+                console.warn('Clicking pagination next page arrow...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Process the new page after it has loaded
+                const allVehicleCards = document.querySelectorAll(vehicleSelector);
+                const currentPageElements = allVehicleCards.length;
+                console.warn(`Processing page with ${currentPageElements} vehicles. Current result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
+                
                 if (testType === "COMING_SOON_DETECTOR") {
                     await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
                 } else {
                     await window.$dataHandler(allVehicleCards, csvData, result, testType);
                 }
                 
-                getPaginationArrow().click();
-                console.warn('Clicking pagination next page arrow...');
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                totalElementsLoaded += actualElementsLoaded;
+                console.warn(`After processing page. Result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
+                totalElementsLoaded = currentPageElements;
             } else {
-                const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
+                // Process the last page
+                const allVehicleCards = document.querySelectorAll(vehicleSelector);
                 if (testType === "COMING_SOON_DETECTOR") {
                     await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
                 } else {
@@ -51,7 +86,7 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
             }
         }
         else if (VIEW_MORE_VEHICLES_SCROLL_TYPE) {
-            const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
+            const allVehicleCards = document.querySelectorAll(vehicleSelector);
             if (testType === "COMING_SOON_DETECTOR") {
                 await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
             } else {
@@ -69,7 +104,7 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
         }
         else {
             if (actualElementsLoaded != totalElementsLoaded) {
-                const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
+                const allVehicleCards = document.querySelectorAll(vehicleSelector);
                 if (testType === "COMING_SOON_DETECTOR") {
                     await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
                 } else {

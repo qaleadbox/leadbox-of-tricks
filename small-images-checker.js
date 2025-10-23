@@ -1,3 +1,4 @@
+﻿// $small-images-checker.js
 document.getElementById('check small images').addEventListener('click', async (event) => {
     const smallImageSettingsDiv = document.getElementById('smallImageSettingsDiv');
     
