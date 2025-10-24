@@ -12,13 +12,14 @@ function getVehicleCardSelector() {
 }
 
 window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType) {
+    window.debugMode = false;
     const vehicleSelector = getVehicleCardSelector();
     let actualElementsLoaded = document.querySelectorAll(vehicleSelector).length;
     let totalElementsLoaded = 0;
     let isMoreVehicleAvailable = true;
 
     if (actualElementsLoaded === 0) {
-        console.warn('Waiting for initial vehicles to load...');
+        if (window.debugMode) console.warn('Waiting for initial vehicles to load...');
         await new Promise(resolve => setTimeout(resolve, 3000));
         actualElementsLoaded = document.querySelectorAll(vehicleSelector).length;
         if (actualElementsLoaded === 0) {
@@ -28,12 +29,11 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
     }
 
     totalElementsLoaded = actualElementsLoaded;
-    console.warn(`Initial load: ${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
+    if (window.debugMode) console.warn(`Initial load: ${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
 
-    // Process the first page if using pagination
     if (isPaginationScrollType()) {
         const allVehicleCards = document.querySelectorAll(vehicleSelector);
-        console.warn(`Processing first page with ${allVehicleCards.length} vehicles. Initial result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
+        if (window.debugMode) console.warn(`Processing first page with ${allVehicleCards.length} vehicles. Initial result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
         
         if (testType === "COMING_SOON_DETECTOR") {
             await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
@@ -41,7 +41,7 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
             await window.$dataHandler(allVehicleCards, csvData, result, testType);
         }
         
-        console.warn(`After processing first page. Result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
+        if (window.debugMode) console.warn(`After processing first page. Result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
     }
 
     while (isMoreVehicleAvailable) {
@@ -58,13 +58,12 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
         if (PAGINATION_SCROLL_TYPE) {
             if (isThereANextPage()) {
                 getPaginationArrow().click();
-                console.warn('Clicking pagination next page arrow...');
+                if (window.debugMode) console.warn('Clicking pagination next page arrow...');
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 
-                // Process the new page after it has loaded
                 const allVehicleCards = document.querySelectorAll(vehicleSelector);
                 const currentPageElements = allVehicleCards.length;
-                console.warn(`Processing page with ${currentPageElements} vehicles. Current result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
+                if (window.debugMode) console.warn(`Processing page with ${currentPageElements} vehicles. Current result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
                 
                 if (testType === "COMING_SOON_DETECTOR") {
                     await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
@@ -72,10 +71,9 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
                     await window.$dataHandler(allVehicleCards, csvData, result, testType);
                 }
                 
-                console.warn(`After processing page. Result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
+                if (window.debugMode) console.warn(`After processing page. Result length: ${Array.isArray(result) ? result.length : Object.keys(result).length}`);
                 totalElementsLoaded = currentPageElements;
             } else {
-                // Process the last page
                 const allVehicleCards = document.querySelectorAll(vehicleSelector);
                 if (testType === "COMING_SOON_DETECTOR") {
                     await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
@@ -95,7 +93,7 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
 
             if (isViewMoreButtonVisible()) {
                 getViewMoreButton().click();
-                console.warn('Clicking "View More Vehicles" button...');
+                if (window.debugMode) console.warn('Clicking "View More Vehicles" button...');
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 totalElementsLoaded = actualElementsLoaded;
             } else {
@@ -113,17 +111,17 @@ window.scrollDownUntilLoadAllVehicles = async function(result, csvData, testType
 
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
                 await new Promise(resolve => setTimeout(resolve, 2000));
-                console.warn('Scrolling to see more vehicles...');
+                if (window.debugMode) console.warn('Scrolling to see more vehicles...');
                 totalElementsLoaded = actualElementsLoaded;
             } else {
                 isMoreVehicleAvailable = false;
             }
         }
 
-        console.warn(`${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
+        if (window.debugMode) console.warn(`${totalElementsLoaded} vehicle${totalElementsLoaded !== 1 ? 's' : ''} loaded.`);
     }
 
-    console.warn("Finished scrolling, all vehicles loaded.");
+    if (window.debugMode) console.warn("Finished scrolling, all vehicles loaded.");
     return totalElementsLoaded;
 }
 

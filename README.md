@@ -169,6 +169,8 @@ root/
 
 ## Version History
 
+- V3.6: Hotfix srpParser + logo spinner + debugmode option
+- v3.5: IMS-Internals-Leads-Edit-Icon
 - v3.4: LBX-text-autofiller
 - v3.3: Allow-user-to-set-image-size-threshold Latest
 - v3.2: Implemented checking images by OpenAI API
@@ -200,6 +202,7 @@ root/
 | Severity      | Description        |
 |--------------------|---------------|
 | HIGH | If pop up hiddes before the process finish, causes the reports not be generated |
+| HIGH | In case of vehicle cards with this version https://countychevroletessex.com/search/ a different image is taken and causing false positives|
 | MEDIUM | If OCR API was down, the cards should have a new tag "API is offline" |
 | MEDIUM | Start a process, reopen popup, it will be not locked(loading) |
 | MEDIUM | When any result is found, the icon keeps spinning|

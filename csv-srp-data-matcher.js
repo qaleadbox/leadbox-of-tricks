@@ -212,12 +212,6 @@ function processCSVData(testType, csvData, customFieldMap) {
         }
     }
 
-    safeSendMessage({ type: 'startProcessing' }).then(response => {
-        if (!response || !response.success) {
-            console.log('Failed to start processing');
-        }
-    });
-
     findUrlsAndModels(testType, csvData);
 
     async function findUrlsAndModels(testType, csvData) {
@@ -240,7 +234,6 @@ function processCSVData(testType, csvData, customFieldMap) {
                 console.log('No mismatches found to export');
             }
         } finally {
-            await safeSendMessage({ type: 'stopProcessing' });
             isProcessing = false;
         }
     }
