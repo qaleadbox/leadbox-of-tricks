@@ -1,3 +1,67 @@
+document.addEventListener('DOMContentLoaded', async () => {
+    const module = await import(chrome.runtime.getURL('vehicle-card-storage.js'));
+    const {
+      getCurrentDomain,
+      getVehicleCardSelectors,
+      setVehicleCardSelectors,
+      exportVehicleCardSelectors,
+      importVehicleCardSelectors
+    } = module;
+  
+    const inputs = {
+      card: document.getElementById('vehicleCardSelector'),
+      stockNumber: document.getElementById('stockNumberSelector'),
+      image: document.getElementById('imageSelector'),
+      model: document.getElementById('modelSelector'),
+      trim: document.getElementById('trimSelector')
+    };
+  
+    let currentDomain = await getCurrentDomain();
+    document.body.dataset.domain = currentDomain;
+  
+    // === Load saved values ===
+    async function loadSelectors() {
+      const data = await getVehicleCardSelectors(currentDomain);
+      for (const key in inputs) inputs[key].value = data[key] || '';
+      console.log(`📦 Loaded persistent selectors for ${currentDomain}`, data);
+    }
+  
+    // === Save immediately on change ===
+    async function saveSelectors() {
+      const data = {};
+      for (const key in inputs) data[key] = inputs[key].value.trim();
+      await setVehicleCardSelectors(currentDomain, data);
+      console.log(`💾 Persisted selectors for ${currentDomain}`, data);
+    }
+  
+    // === Sync UI when storage changes (live updates) ===
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.vehicleCardSelectorMap) {
+        loadSelectors();
+      }
+    });
+  
+    // === Bind field events ===
+    for (const key in inputs) {
+      inputs[key].addEventListener('input', saveSelectors);
+      inputs[key].addEventListener('change', saveSelectors);
+    }
+  
+    // === Buttons ===
+    document.getElementById('saveSelectors').addEventListener('click', saveSelectors);
+    document.getElementById('exportSelectors').addEventListener('click', exportVehicleCardSelectors);
+    document.getElementById('importSelectors').addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ok = await importVehicleCardSelectors(file);
+      alert(ok ? '✅ Import successful!' : '❌ Import failed!');
+      loadSelectors();
+    });
+  
+    await loadSelectors();
+    console.log('✨ Popup persistent system ready');
+  });
+
 const style = document.createElement('style');
 style.textContent = `
     .loading-overlay {

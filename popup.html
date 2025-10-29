@@ -778,15 +778,38 @@ Steps:
       <div class="topic-description">Project objectives and future plans</div>
     </a>
   </div>
-
+  
   <div class="import-export-section">
-    <h2>Import/Export Field Maps</h2>
-    <div class="import-export-buttons">
-      <button id="exportButton">Export Field Maps</button>
-      <label for="importFile" class="file-input-label">Import Field Maps</label>
-      <input type="file" id="importFile" accept=".json">
+    <h2>Current Site Field Mapping</h2>
+    <div id="fieldMappingContainer" class="field-mappings">
+      <div>
+        <label>Vehicle Card Selector</label>
+        <input id="vehicleCardSelector" placeholder="div.vehicle-card, div.vehicle-car__section">
+      </div>
+      <div>
+        <label>Stock Number Selector</label>
+        <input id="stockNumberSelector" placeholder=".stock-number-value, .value__stock">
+      </div>
+      <div>
+        <label>Image Selector</label>
+        <input id="imageSelector" placeholder=".main-img, picture img">
+      </div>
+      <div>
+        <label>Model Selector</label>
+        <input id="modelSelector" placeholder=".vehicle-title, .title-text">
+      </div>
+      <div>
+        <label>Trim Selector</label>
+        <input id="trimSelector" placeholder=".vehicle-trim, .subtitle">
+      </div>
     </div>
+  
+    <button id="saveSelectors">Save Mapping</button>
+    <button id="exportSelectors">Export Vehicle Selectors</button>
+    <label for="importSelectors">Import Vehicle Selectors:</label>
+    <input type="file" id="importSelectors" accept=".json">
   </div>
+  
 
   <div class="import-export-section">
     <h2>Intellisense System</h2>
@@ -819,6 +842,7 @@ Steps:
       <div style="font-size:12px; color:#ccc;">Changes apply immediately on new pages; reload pages for full effect.</div>
     </div>
   </div>
+<script type="module" src="vehicle-card-ui.js"></script>
 
 </body>
 

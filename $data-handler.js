@@ -1,47 +1,82 @@
-﻿// Detect SRP structure
+﻿// $data-handler.js
 function detectVehicleCardStructure() {
 	if (document.querySelector('div.vehicle-card.vehicle-card-6')) return 'vehicleCardV6';
 	if (document.querySelector('div.vehicle-car__section.vehicle-car-1')) return 'vehicleCardV12345';
+	if (document.querySelector('div.vehicle-card.vehicle-card-1')) return 'vehicleCardTailwind';
 	return 'unknown';
-}
+  }
 
-function getVehicleCardSelector() {
+  function getVehicleCardSelector() {
 	const s = detectVehicleCardStructure();
 	if (s === 'vehicleCardV6') return 'div.vehicle-card.vehicle-card-6';
 	if (s === 'vehicleCardV12345') return 'div.vehicle-car__section.vehicle-car-1';
-	return 'div.vehicle-card.vehicle-card-6, div.vehicle-car__section.vehicle-car-1';
-}
+	if (s === 'vehicleCardTailwind') return 'div.vehicle-card.vehicle-card-1';
+	return 'div.vehicle-card.vehicle-card-6, div.vehicle-car__section.vehicle-car-1, div.vehicle-card.vehicle-card-1';
+  }
 
-function getFieldSelectors(s) {
+  function getFieldSelectors(s) {
 	if (s === 'vehicleCardV6')
-		return { model: '.title-text', trim: '.title-text', stockNumber: '.stock-value', image: '.main-img' };
+	  return { model: '.title-text', trim: '.title-text', stockNumber: '.stock-value', image: '.main-img' };
 	if (s === 'vehicleCardV12345')
-		return { model: '.value__model', trim: '.value__trim', stockNumber: '.stock_label, .stock_number, .value__stock', image: '.main-img' };
+	  return { model: '.value__model', trim: '.value__trim', stockNumber: '.stock_label, .stock_number, .value__stock', image: '.main-img' };
+	if (s === 'vehicleCardTailwind')
+	  return {
+		model: '.vehicle-title',
+		trim: '.vehicle-trim',
+		stockNumber: '.stock-number-value',
+		image: '.main-img'
+	  };
 	return { model: '.title-text', trim: '.title-text', stockNumber: '.stock-value', image: '.main-img' };
-}
+  }
+  
 
-function extractFields(element) {
+  function extractFields(element) {
 	const fields = { stockNumber: '', model: '', trim: '' };
-	const stockSelectors = ['.value__stock', '.stock_number', '.stock_label', '.stock-value', '[data-stock-number]'];
-	const modelSelectors = ['.value__model', '.title-text', '.vehicle-title', '[data-model]'];
-	const trimSelectors = ['.value__trim', '.trim', '.subtitle'];
+  
+	const stockSelectors = [
+	  '.stock-number-value',
+	  '.value__stock',
+	  '.stock_number',
+	  '.stock_label',
+	  '.stock-value',
+	  '[data-stock-number]'
+	];
+	const modelSelectors = [
+	  '.vehicle-title',
+	  '.value__model',
+	  '.title-text',
+	  '.vehicle-car__section .title',
+	  '[data-model]'
+	];
+	const trimSelectors = [
+	  '.vehicle-trim',
+	  '.subtitle',
+	  '.value__trim',
+	  '.trim',
+	  '.vehicle-card .text-primary'
+	];
+  
 	for (const q of stockSelectors) {
-		const el = element.querySelector(q);
-		if (el && el.textContent.trim()) { fields.stockNumber = el.textContent.trim(); break; }
+	  const el = element.querySelector(q);
+	  if (el && el.textContent.trim()) { fields.stockNumber = el.textContent.trim(); break; }
 	}
+  
 	for (const q of modelSelectors) {
-		const el = element.querySelector(q);
-		if (el && el.textContent.trim()) { fields.model = el.textContent.trim(); break; }
+	  const el = element.querySelector(q);
+	  if (el && el.textContent.trim()) { fields.model = el.textContent.trim(); break; }
 	}
+  
 	for (const q of trimSelectors) {
-		const el = element.querySelector(q);
-		if (el && el.textContent.trim()) { fields.trim = el.textContent.trim(); break; }
+	  const el = element.querySelector(q);
+	  if (el && el.textContent.trim()) { fields.trim = el.textContent.trim(); break; }
 	}
+  
 	if (fields.stockNumber && /stock\s*#?:/i.test(fields.stockNumber))
-		fields.stockNumber = fields.stockNumber.replace(/stock\s*#?:/i, '').trim();
+	  fields.stockNumber = fields.stockNumber.replace(/stock\s*#?:/i, '').trim();
+  
 	return fields;
-}
-
+  }
+  
 function detectScrollMode() {
 	if (document.querySelector('div.lbx-paginator')) return 'pagination';
 	if (document.querySelector('button.lbx-load-more-btn')) return 'viewmore';

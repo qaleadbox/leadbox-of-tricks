@@ -1,3 +1,4 @@
+// field-map-storage.js
 async function getSiteDescription() {
     try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
