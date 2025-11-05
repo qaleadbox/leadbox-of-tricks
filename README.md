@@ -26,7 +26,7 @@ Installation Guide > https://i.gyazo.com/4c47868b5ad910bb0403d626b518b906.gif
 1. Open Chrome Browser.
 2. Go to `chrome://extensions/`.
 3. Enable **Developer Mode** (top right).
-4. Download AND extract the last version [Here](https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension/releases)
+4. Download AND extract the last version [Here](https://github.com/qaleadbox/leadbox-of-tricks/releases)
 5. Click [Load unpacked](https://i.gyazo.com/7a6fa8e891eb286d8b264c1d905a55a5.png)
 6. Select the project folder to import the extension.
 
@@ -169,6 +169,7 @@ root/
 
 ## Version History
 
+- V3.7: Global manual vehicle's card css selectors (vehicle card, stock, model, img, price, etc)
 - V3.6: Hotfix srpParser + logo spinner + debugmode option
 - v3.5: IMS-Internals-Leads-Edit-Icon
 - v3.4: LBX-text-autofiller

@@ -1,54 +1,89 @@
+// csv-srp-data-matcher.js
 import { saveFieldMapValues, getFieldMapValues } from './field-map-storage.js';
 
 export async function getCurrentFieldMap() {
     const customFieldMap = {};
     const inputs = document.querySelectorAll('.field-mapping input');
-    
-    console.log('Getting current field map from inputs:', inputs.length, 'inputs found');
-    console.log('Available input fields:', Array.from(inputs).map(input => input.id));
-    
-    if (inputs.length === 0) {
-        console.log('No input fields found, checking saved values...');
-        const savedFieldMap = await getFieldMapValues();
-        if (savedFieldMap) {
-            console.log('Found saved field map:', savedFieldMap);
-            const stockNumberFields = Object.keys(savedFieldMap).filter(key => 
-                key.includes('STOCK') || key.includes('STOCKNUMBER') || key.includes('STOCK_NUMBER')
-            );
-            
-            if (stockNumberFields.length > 0) {
-                const stockNumberField = stockNumberFields[0];
-                console.log('Using saved stock number field:', stockNumberField, '=', savedFieldMap[stockNumberField]);
-                
-                Object.assign(customFieldMap, savedFieldMap);
-                console.log('Final custom field map from saved values:', customFieldMap);
-                return customFieldMap;
-            }
-        }
-    }
-    
-    inputs.forEach(input => {
+  
+    const norm = s => (s || '').toLowerCase().replace(/[\s_#"'’]+/g, '').trim();
+    const looksLikeStock = name => {
+      const n = norm(name);
+      return n === 'stocknumber' || n === 'stock' || n === 'stk' || n === 'stockno' || n === 'stock#';
+    };
+  
+    if (inputs.length > 0) {
+      let stockSelectorFromInputs = '';
+  
+      inputs.forEach(input => {
         const originalFieldName = input.id.replace('Mapping', '');
-        const fieldName = originalFieldName.toUpperCase();
-        
-        if (input.value.trim()) {
-            customFieldMap[fieldName] = input.value.trim();
-            console.log('Added field mapping:', fieldName, '=', input.value.trim());
-        } else {
-            console.log('Empty field:', fieldName);
+        const fieldNameUpper = originalFieldName.toUpperCase();
+        const selectorVal = input.value.trim();
+  
+        if (!selectorVal) return;
+  
+        customFieldMap[fieldNameUpper] = selectorVal;
+  
+        if (input.dataset && input.dataset.isStockField === 'true') {
+          stockSelectorFromInputs = selectorVal;
         }
-    });
-    
-    if (!customFieldMap.STOCKNUMBER) {
-        console.error('STOCKNUMBER field is required but not set!');
-        console.log('Available fields:', Object.keys(customFieldMap));
-        alert('Please set the StockNumber field mapping. This field is required for matching.');
+      });
+  
+      if (!customFieldMap.STOCKNUMBER && stockSelectorFromInputs) {
+        customFieldMap.STOCKNUMBER = stockSelectorFromInputs;
+      }
+  
+      if (!customFieldMap.STOCKNUMBER) {
+        const maybe = Object.keys(customFieldMap).find(k => looksLikeStock(k));
+        if (maybe) customFieldMap.STOCKNUMBER = customFieldMap[maybe];
+      }
+  
+      if (!customFieldMap.STOCKNUMBER) {
+        const msg = document.getElementById('csvFieldMapMessage');
+        if (msg) {
+          msg.textContent = 'Please set the selector for a stock field (e.g., Stock, Stock #, STK).';
+          msg.style.color = '#c22';
+        } else {
+          alert('Please set the Stock field selector (Stock, Stock #, STK, or StockNumber).');
+        }
         return null;
+      }
+  
+      return customFieldMap;
     }
-    
-    console.log('Final custom field map:', customFieldMap);
-    return customFieldMap;
-}
+  
+    const savedFieldMap = await getFieldMapValues();
+    if (savedFieldMap && typeof savedFieldMap === 'object') {
+      Object.assign(customFieldMap, savedFieldMap);
+  
+      if (!customFieldMap.STOCKNUMBER) {
+        const maybe = Object.keys(customFieldMap).find(k => looksLikeStock(k));
+        if (maybe) customFieldMap.STOCKNUMBER = customFieldMap[maybe];
+      }
+  
+      if (!customFieldMap.STOCKNUMBER) {
+        const msg = document.getElementById('csvFieldMapMessage');
+        if (msg) {
+          msg.textContent = 'Please set the Stock selector in the mappings.';
+          msg.style.color = '#c22';
+        } else {
+          alert('Please set the Stock selector in the mappings.');
+        }
+        return null;
+      }
+  
+      return customFieldMap;
+    }
+  
+    const msg = document.getElementById('csvFieldMapMessage');
+    if (msg) {
+      msg.textContent = 'No mappings found. Paste CSV and reveal headers first.';
+      msg.style.color = '#c22';
+    } else {
+      alert('No mappings found. Paste CSV and reveal headers first.');
+    }
+    return null;
+  }
+  
 
 export async function refreshFieldMapInputs() {
     const savedFieldMap = await getFieldMapValues();
@@ -120,30 +155,49 @@ export async function callFindUrlsAndModels() {
             headers.forEach(header => {
                 const fieldMapping = document.createElement('div');
                 fieldMapping.className = 'field-mapping';
-                
+              
                 const label = document.createElement('label');
                 label.textContent = `${header}:`;
-                
+              
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.id = `${header.toLowerCase().replace(/\s+/g, '_')}Mapping`;
                 input.placeholder = 'Enter CSS selector';
-                
-                if (header === 'StockNumber') {
-                    input.required = true;
-                    input.style.borderColor = '#ff4444';
-                    label.innerHTML = `${header}: <span style="color: #ff4444;">*</span>`;
+              
+                const normalizedHeader = header.toLowerCase().replace(/[\s_#"'’]+/g, '');
+                const isStockHeader = (
+                  normalizedHeader === 'stocknumber' ||
+                  normalizedHeader === 'stock' ||
+                  normalizedHeader === 'stk' ||
+                  normalizedHeader === 'stockno' ||
+                  normalizedHeader === 'stock#'
+                );
+              
+                if (isStockHeader) {
+                  input.required = true;
+                  input.dataset.isStockField = 'true';
+                  input.style.borderColor = '#ff4444';
+                  label.innerHTML = `${header}: <span style="color: #ff4444;">*</span>`;
                 }
-                
+              
                 input.addEventListener('change', async () => {
-                    const customFieldMap = await getCurrentFieldMap();
-                    await saveFieldMapValues(customFieldMap);
+                  const map = await getCurrentFieldMap();
+                  if (map) await saveFieldMapValues(map);
                 });
-                
+              
                 fieldMapping.appendChild(label);
                 fieldMapping.appendChild(input);
                 fieldMappingsContainer.appendChild(fieldMapping);
-            });
+              });
+              
+              let msg = document.getElementById('csvFieldMapMessage');
+              if (!msg) {
+                msg = document.createElement('div');
+                msg.id = 'csvFieldMapMessage';
+                msg.style.marginTop = '6px';
+                fieldMappingsContainer.appendChild(msg);
+              }
+              
 
             await refreshFieldMapInputs();
 

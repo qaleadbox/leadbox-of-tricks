@@ -10,7 +10,7 @@
                      │ uses chrome.runtime + chrome.storage
                      ▼
 ┌──────────────────────────────────────────────────────────┐
-│                vehicle-card-manager.js                   │
+│                 vehicle-card-store.js                    │
 │──────────────────────────────────────────────────────────│
 │ + getCurrentDomain(): string                             │
 │ + getVehicleCardSelectors(domain): obj                   │
@@ -27,7 +27,7 @@
            │ later used in injected context
            ▼
 ┌──────────────────────────────────────────────────────────┐
-│             vehicle-card-storage.js                      │
+│             local-storage.js                      │
 │──────────────────────────────────────────────────────────│
 │ + window.getActiveVehicleSelectors(): Promise<object>    │
 │    → Loads selectors from chrome.storage.local           │
@@ -45,7 +45,7 @@
 │    - Detects card structure                              │
 │    - Extracts model, trim, stock, image                  │
 │──────────────────────────────────────────────────────────│
-│ * injected dynamically after vehicle-card-storage.js     │
+│ * injected dynamically after local-storage.js     │
 │ * runs directly in the DOM of target page                │
 │ * calls chrome.runtime.sendMessage for exports           │
 └──────────┬───────────────────────────────────────────────┘

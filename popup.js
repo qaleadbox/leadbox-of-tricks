@@ -1,3 +1,103 @@
+// popup.js
+const fieldsContainer = document.getElementById('fieldsContainer');
+const addFieldBtn = document.getElementById('addFieldBtn');
+const saveManualBtn = document.getElementById('saveManualSelectors');
+const exportSelectorsBtn = document.getElementById('exportSelectors');
+const importSelectorsInput = document.getElementById('importSelectors');
+const STORAGE_KEY = 'manualVehicleSelectors';
+const MANDATORY_FIELDS = ['vehicleCard', 'stockNumber', 'model', 'image'];
+
+function createFieldRow(key = '', selector = '', locked = false) {
+  const row = document.createElement('div');
+  row.className = 'field-row';
+  row.innerHTML = `
+    <input class="field-key" ${locked ? 'readonly' : ''} value="${key}">
+    <input class="field-selector" placeholder="CSS selector" value="${selector}">
+    <button class="remove-btn"${locked ? ' disabled' : ''}>🗑</button>
+  `;
+  row.querySelector('.remove-btn').addEventListener('click', () => { if (!locked) row.remove(); });
+  fieldsContainer.appendChild(row);
+}
+
+async function getCurrentDomain() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab?.url ? new URL(tab.url).hostname.replace(/^www\./, '') : 'global';
+}
+
+async function loadManualSelectors() {
+  const domain = await getCurrentDomain();
+  const stored = await chrome.storage.local.get(STORAGE_KEY);
+  const map = stored[STORAGE_KEY] || {};
+  const selectors = map[domain] || {};
+  fieldsContainer.innerHTML = '';
+  MANDATORY_FIELDS.forEach(m => createFieldRow(m, selectors[m] || '', true));
+  for (const [key, value] of Object.entries(selectors)) {
+    if (!MANDATORY_FIELDS.includes(key)) createFieldRow(key, value, false);
+  }
+  console.log(`📦 Loaded selectors for ${domain}`, selectors);
+}
+
+async function saveManualSelectors() {
+  const domain = await getCurrentDomain();
+  const stored = await chrome.storage.local.get(STORAGE_KEY);
+  const map = stored[STORAGE_KEY] || {};
+  const rows = fieldsContainer.querySelectorAll('.field-row');
+  const selectors = {};
+  rows.forEach(row => {
+    const key = row.querySelector('.field-key').value.trim();
+    const selector = row.querySelector('.field-selector').value.trim();
+    if (key && selector) selectors[key] = selector;
+  });
+  map[domain] = selectors;
+  await chrome.storage.local.set({ [STORAGE_KEY]: map });
+  console.log(`💾 Saved selectors for ${domain}`, selectors);
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id) {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (domain, selectors) => {
+        if (!window.manualVehicleSelectors) window.manualVehicleSelectors = {};
+        window.manualVehicleSelectors[domain] = selectors;
+        window.dispatchEvent(new CustomEvent('selectorsUpdated', { detail: { domain, selectors } }));
+      },
+      args: [domain, selectors]
+    });
+  }
+  alert(`✅ Selectors saved for ${domain}!`);
+}
+
+addFieldBtn.addEventListener('click', () => createFieldRow());
+saveManualBtn.addEventListener('click', saveManualSelectors);
+
+async function exportVehicleSelectors() {
+  const stored = await chrome.storage.local.get(STORAGE_KEY);
+  const blob = new Blob([JSON.stringify(stored[STORAGE_KEY] || {}, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `vehicle-selectors-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+exportSelectorsBtn.addEventListener('click', exportVehicleSelectors);
+
+importSelectorsInput.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    await chrome.storage.local.set({ [STORAGE_KEY]: data });
+    await loadManualSelectors();
+    alert('✅ Import successful!');
+  } catch {
+    alert('❌ Invalid JSON file.');
+  }
+});
+
+loadManualSelectors();
+
+
 document.addEventListener('DOMContentLoaded', async () => {
     const module = await import(chrome.runtime.getURL('vehicle-card-storage.js'));
     const {
@@ -19,35 +119,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentDomain = await getCurrentDomain();
     document.body.dataset.domain = currentDomain;
   
-    // === Load saved values ===
     async function loadSelectors() {
-      const data = await getVehicleCardSelectors(currentDomain);
-      for (const key in inputs) inputs[key].value = data[key] || '';
-      console.log(`📦 Loaded persistent selectors for ${currentDomain}`, data);
-    }
+        try {
+          if (!currentDomain) {
+            currentDomain = await getCurrentDomain();
+          }
+          const data = (await getVehicleCardSelectors(currentDomain)) || {};
+          for (const key in inputs) {
+            if (inputs[key]) {
+              inputs[key].value = data[key] || '';
+            }
+          }
+          console.log(`📦 Loaded selectors for ${currentDomain}`, data);
+        } catch (err) {
+          console.warn(`⚠️ loadSelectors failed for ${currentDomain}:`, err);
+        }
+      }
+      
+      async function saveSelectors() {
+        try {
+          if (!currentDomain) {
+            currentDomain = await getCurrentDomain();
+          }
+      
+          const data = {};
+          for (const key in inputs) {
+            if (inputs[key]) {
+              const val = inputs[key].value?.trim();
+              if (val) data[key] = val;
+            }
+          }
+      
+          if (Object.keys(data).length === 0) {
+            console.warn('⚠️ saveSelectors skipped: no valid inputs.');
+            return;
+          }
+      
+          await setVehicleCardSelectors(currentDomain, data);
+          console.log(`💾 Saved selectors for ${currentDomain}`, data);
+        } catch (err) {
+          console.warn(`⚠️ saveSelectors failed for ${currentDomain}:`, err);
+        }
+      }
   
-    // === Save immediately on change ===
-    async function saveSelectors() {
-      const data = {};
-      for (const key in inputs) data[key] = inputs[key].value.trim();
-      await setVehicleCardSelectors(currentDomain, data);
-      console.log(`💾 Persisted selectors for ${currentDomain}`, data);
-    }
-  
-    // === Sync UI when storage changes (live updates) ===
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === 'local' && changes.vehicleCardSelectorMap) {
         loadSelectors();
       }
     });
   
-    // === Bind field events ===
     for (const key in inputs) {
-      inputs[key].addEventListener('input', saveSelectors);
-      inputs[key].addEventListener('change', saveSelectors);
-    }
-  
-    // === Buttons ===
+        const el = inputs[key];
+        if (el) {
+          el.addEventListener('input', () => {
+            queueMicrotask(() => saveSelectors());
+          });
+          el.addEventListener('change', saveSelectors);
+        }
+      }
+
     document.getElementById('saveSelectors').addEventListener('click', saveSelectors);
     document.getElementById('exportSelectors').addEventListener('click', exportVehicleCardSelectors);
     document.getElementById('importSelectors').addEventListener('change', async e => {
@@ -263,17 +393,14 @@ async function loadSettings() {
     const { featureSettings } = await chrome.storage.local.get([SETTINGS_KEY]);
     const s = featureSettings || {};
 
-    // Back-compat reads (accept old keys if present)
     const leadsEditIcon = (typeof s.leadsEditIcon !== 'undefined') ? s.leadsEditIcon : (typeof s.editIcon !== 'undefined' ? s.editIcon : true);
     const leadsPrinterIcon = (typeof s.leadsPrinterIcon !== 'undefined') ? s.leadsPrinterIcon : (typeof s.printerIcon !== 'undefined' ? s.printerIcon : true);
     const autofill = (typeof s.autofill !== 'undefined') ? s.autofill : true;
 
-    // Update the UI
     if (toggleEditIconEl) toggleEditIconEl.checked = !!leadsEditIcon;
     if (togglePrinterIconEl) togglePrinterIconEl.checked = !!leadsPrinterIcon;
     if (toggleAutofillEl) toggleAutofillEl.checked = !!autofill;
 
-    // Re-save using unified keys so content scripts read the same shape
     await chrome.storage.local.set({
         [SETTINGS_KEY]: { ...s, leadsEditIcon, leadsPrinterIcon, autofill }
     });
@@ -283,7 +410,6 @@ async function saveSettings(partial) {
     const { featureSettings } = await chrome.storage.local.get([SETTINGS_KEY]);
     const next = { ...(featureSettings || {}), ...partial };
 
-    // Also mirror old keys for back-compat with any older injectors
     if (typeof partial.leadsPrinterIcon !== 'undefined') {
         next.printerIcon = partial.leadsPrinterIcon;
     }
@@ -293,13 +419,11 @@ async function saveSettings(partial) {
 
     await chrome.storage.local.set({ [SETTINGS_KEY]: next });
 
-    // notify active tab so content scripts refresh their gates
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tab = tabs && tabs[0];
         if (tab && tab.id) {
-                        // inside saveSettings, replace sendMessage line with:
             chrome.tabs.sendMessage(tab.id, { type: 'featureSettingsUpdated', settings: next }, () => {
-                void chrome.runtime.lastError; // swallow "no receiver" when not on a leads page
+                void chrome.runtime.lastError;
             });
   
         }
@@ -323,6 +447,7 @@ if (toggleAutofillEl) {
 }
 
 loadSettings();
+
 
 document.getElementById('exportButton').addEventListener('click', async () => {
     try {

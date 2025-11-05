@@ -1,7 +1,7 @@
 User clicks button in popup
       │
       ▼
-popup.js → chrome.scripting.executeScript(vehicle-card-storage.js)
+popup.js → chrome.scripting.executeScript(local-storage.js)
       │
       ▼
 popup.js → chrome.scripting.executeScript($data-handler.js)
@@ -10,7 +10,7 @@ popup.js → chrome.scripting.executeScript($data-handler.js)
 $data-handler.js runs in page context
       │
       ├─> calls window.getActiveVehicleSelectors()
-      │       (from vehicle-card-storage.js)
+      │       (from local-storage.js)
       │
       ├─> processes DOM vehicle cards
       │

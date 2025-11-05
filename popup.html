@@ -523,7 +523,11 @@
     input[type="radio"]:hover {
       border-color: #3965c3;
     }
-
+    input[type="radio"]:disabled {
+      filter: grayscale(100%);
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
     /* Intellisense suggestion box styling */
     #intellisense-suggestions {
       font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -646,7 +650,7 @@
           <span>OCR</span>
         </label>
         <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
-          <input type="radio" name="imageCheckMethod" value="openai" id="openaiMethod" style="margin: 0;">
+          <input type="radio" name="imageCheckMethod" value="openai" id="openaiMethod" style="margin: 0;" disabled>
           <span>OpenAI</span>
         </label>
       </div>
@@ -748,60 +752,43 @@ Steps:
   <div class="docs-popup">
     <h2>Documentation</h2>
     
-    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#how-to-install" target="_blank" class="topic">
+    <a href="https://github.com/qaleadbox/leadbox-of-tricks?tab=readme-ov-file#how-to-install" target="_blank" class="topic">
       <div class="topic-title">How to install</div>
       <div class="topic-description">Installation guide for Google Chrome</div>
     </a>
 
-    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#how-to-use" target="_blank" class="topic">
+    <a href="https://github.com/qaleadbox/leadbox-of-tricks?tab=readme-ov-file#how-to-use" target="_blank" class="topic">
       <div class="topic-title">How to use</div>
       <div class="topic-description">Feature guides and usage instructions</div>
     </a>
 
-    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#structure" target="_blank" class="topic">
+    <a href="https://github.com/qaleadbox/leadbox-of-tricks?tab=readme-ov-file#structure" target="_blank" class="topic">
       <div class="topic-title">Structure</div>
       <div class="topic-description">Project folder structure and file descriptions</div>
     </a>
 
-    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#development-status" target="_blank" class="topic">
+    <a href="https://github.com/qaleadbox/leadbox-of-tricks?tab=readme-ov-file#development-status" target="_blank" class="topic">
       <div class="topic-title">Development Status</div>
       <div class="topic-description">Current progress and pending items</div>
     </a>
 
-    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#known-issues" target="_blank" class="topic">
+    <a href="https://github.com/qaleadbox/leadbox-of-tricks?tab=readme-ov-file#known-issues" target="_blank" class="topic">
       <div class="topic-title">Known Issues</div>
       <div class="topic-description">Current limitations and bugs</div>
     </a>
 
-    <a href="https://github.com/robinsonmourao/Inventory-Crawl-Chrome-Extension?tab=readme-ov-file#goal" target="_blank" class="topic">
+    <a href="https://github.com/qaleadbox/leadbox-of-tricks?tab=readme-ov-file#goal" target="_blank" class="topic">
       <div class="topic-title">Goal</div>
       <div class="topic-description">Project objectives and future plans</div>
     </a>
   </div>
   
   <div class="import-export-section">
-    <h2>Current Site Field Mapping</h2>
-    <div id="fieldMappingContainer" class="field-mappings">
-      <div>
-        <label>Vehicle Card Selector</label>
-        <input id="vehicleCardSelector" placeholder="div.vehicle-card, div.vehicle-car__section">
-      </div>
-      <div>
-        <label>Stock Number Selector</label>
-        <input id="stockNumberSelector" placeholder=".stock-number-value, .value__stock">
-      </div>
-      <div>
-        <label>Image Selector</label>
-        <input id="imageSelector" placeholder=".main-img, picture img">
-      </div>
-      <div>
-        <label>Model Selector</label>
-        <input id="modelSelector" placeholder=".vehicle-title, .title-text">
-      </div>
-      <div>
-        <label>Trim Selector</label>
-        <input id="trimSelector" placeholder=".vehicle-trim, .subtitle">
-      </div>
+    <div id="manualSelectorsContainer">
+      <h3>Mandatory Vehicle Selectors</h3>
+      <div id="fieldsContainer"></div>
+      <button id="addFieldBtn">+ Add Field</button>
+      <button id="saveManualSelectors">Save Selectors</button>
     </div>
   
     <button id="saveSelectors">Save Mapping</button>
@@ -810,6 +797,14 @@ Steps:
     <input type="file" id="importSelectors" accept=".json">
   </div>
   
+  <div class="import-export-section">
+    <h2>Import/Export Field Maps</h2>
+    <div class="import-export-buttons">
+      <button id="exportButton">Export Field Maps</button>
+      <label for="importFile" class="file-input-label">Import Field Maps</label>
+      <input type="file" id="importFile" accept=".json">
+    </div>
+  </div>
 
   <div class="import-export-section">
     <h2>Intellisense System</h2>

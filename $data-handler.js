@@ -1,93 +1,160 @@
-﻿// $data-handler.js
-function detectVehicleCardStructure() {
-	if (document.querySelector('div.vehicle-card.vehicle-card-6')) return 'vehicleCardV6';
-	if (document.querySelector('div.vehicle-car__section.vehicle-car-1')) return 'vehicleCardV12345';
-	if (document.querySelector('div.vehicle-card.vehicle-card-1')) return 'vehicleCardTailwind';
-	return 'unknown';
-  }
-
-  function getVehicleCardSelector() {
-	const s = detectVehicleCardStructure();
-	if (s === 'vehicleCardV6') return 'div.vehicle-card.vehicle-card-6';
-	if (s === 'vehicleCardV12345') return 'div.vehicle-car__section.vehicle-car-1';
-	if (s === 'vehicleCardTailwind') return 'div.vehicle-card.vehicle-card-1';
-	return 'div.vehicle-card.vehicle-card-6, div.vehicle-car__section.vehicle-car-1, div.vehicle-card.vehicle-card-1';
-  }
-
-  function getFieldSelectors(s) {
-	if (s === 'vehicleCardV6')
-	  return { model: '.title-text', trim: '.title-text', stockNumber: '.stock-value', image: '.main-img' };
-	if (s === 'vehicleCardV12345')
-	  return { model: '.value__model', trim: '.value__trim', stockNumber: '.stock_label, .stock_number, .value__stock', image: '.main-img' };
-	if (s === 'vehicleCardTailwind')
-	  return {
-		model: '.vehicle-title',
-		trim: '.vehicle-trim',
-		stockNumber: '.stock-number-value',
-		image: '.main-img'
-	  };
-	return { model: '.title-text', trim: '.title-text', stockNumber: '.stock-value', image: '.main-img' };
-  }
-  
-
-  function extractFields(element) {
-	const fields = { stockNumber: '', model: '', trim: '' };
-  
-	const stockSelectors = [
-	  '.stock-number-value',
-	  '.value__stock',
-	  '.stock_number',
-	  '.stock_label',
-	  '.stock-value',
-	  '[data-stock-number]'
-	];
-	const modelSelectors = [
-	  '.vehicle-title',
-	  '.value__model',
-	  '.title-text',
-	  '.vehicle-car__section .title',
-	  '[data-model]'
-	];
-	const trimSelectors = [
-	  '.vehicle-trim',
-	  '.subtitle',
-	  '.value__trim',
-	  '.trim',
-	  '.vehicle-card .text-primary'
-	];
-  
-	for (const q of stockSelectors) {
-	  const el = element.querySelector(q);
-	  if (el && el.textContent.trim()) { fields.stockNumber = el.textContent.trim(); break; }
+﻿// data-handler.js
+(async () => {
+	try {
+		const domain = window.location.hostname.replace(/^www\./, '');
+		const stored = await chrome.storage.local.get('manualVehicleSelectors');
+		const all = stored.manualVehicleSelectors || {};
+		const selectors = all[domain] || all.global || {};
+		if (!window.manualVehicleSelectors) window.manualVehicleSelectors = {};
+		window.manualVehicleSelectors[domain] = selectors;
+		console.log(`♻️ Updated manualVehicleSelectors for ${domain}`, selectors);
+	} catch (err) {
+		console.warn('⚠️ Failed to initialize manualVehicleSelectors:', err);
 	}
-  
-	for (const q of modelSelectors) {
-	  const el = element.querySelector(q);
-	  if (el && el.textContent.trim()) { fields.model = el.textContent.trim(); break; }
+})();
+
+window.toggleModuleSection = function (buttonId, sectionId) {
+	const btn = document.getElementById(buttonId);
+	const section = document.getElementById(sectionId);
+	if (!btn || !section) return;
+	btn.addEventListener('click', () => {
+		document.querySelectorAll('.import-export-section, .module-section').forEach(sec => {
+			if (sec.id !== sectionId) sec.style.display = 'none';
+		});
+		section.style.display = section.style.display === 'block' ? 'none' : 'block';
+	});
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+	toggleModuleSection('check small images', 'smallImageSettingsDiv');
+	toggleModuleSection('check missing images', 'methodSelectionDiv');
+	toggleModuleSection('match csv data with SRP cards information', 'csvInput');
+});
+
+async function getVehicleInfoFromElement(element) {
+	const { stockNumber, model, trim, image } = await extractFields(element);
+	if (!stockNumber || !model) {
+		console.warn("⚠️ Missing stockNumber or model", { stockNumber, model, element });
 	}
-  
-	for (const q of trimSelectors) {
-	  const el = element.querySelector(q);
-	  if (el && el.textContent.trim()) { fields.trim = el.textContent.trim(); break; }
+	return { stockNumber, model, trim, image };
+}
+
+async function loadManualSelectors() {
+	const domain = window.location.hostname.replace(/^www\./, '');
+
+	if (window.manualVehicleSelectors?.[domain]) {
+		return window.manualVehicleSelectors[domain];
 	}
-  
-	if (fields.stockNumber && /stock\s*#?:/i.test(fields.stockNumber))
-	  fields.stockNumber = fields.stockNumber.replace(/stock\s*#?:/i, '').trim();
-  
+
+	try {
+		const stored = await chrome.storage.local.get('manualVehicleSelectors');
+		const all = stored.manualVehicleSelectors || {};
+		const selectors = all[domain] || all.global || {};
+
+		if (!window.manualVehicleSelectors) window.manualVehicleSelectors = {};
+		window.manualVehicleSelectors[domain] = selectors;
+
+		console.log(`📦 Loaded manualVehicleSelectors for ${domain}`, selectors);
+		return selectors;
+	} catch (err) {
+		console.warn('⚠️ Could not read manualVehicleSelectors from storage:', err);
+		return {};
+	}
+}
+
+async function getVehicleCardSelector() {
+	const domain = window.location.hostname.replace(/^www\./, '');
+	const selectors = await loadManualSelectors();
+
+	const selector = selectors.vehicleCard || selectors.card || null;
+	if (!selector) {
+		console.warn(`⚠️ Missing 'vehicleCard' selector for ${domain}. Please configure in popup.`);
+		return null;
+	}
+
+	return selector;
+}
+
+async function getFieldSelectors() {
+	const selectors = await loadManualSelectors();
+	if (!Object.keys(selectors).length) {
+		console.warn("⚠️ No field selectors available. Popup configuration required.");
+	}
+	return selectors;
+}
+
+async function extractFields(element) {
+	const domain = window.location.hostname.replace(/^www\./, '');
+	const stored = (await chrome.storage.local.get('manualVehicleSelectors')).manualVehicleSelectors || {};
+	const selectors =
+		stored[domain] ||
+		stored.global ||
+		window.manualVehicleSelectors?.[domain] ||
+		{};
+
+	const fields = { stockNumber: '', model: '', trim: '', image: '' };
+
+	if (!Object.keys(selectors).length) {
+		console.warn(`⚠️ extractFields(): No selectors found for ${domain}`);
+		return fields;
+	}
+
+	const normalized = {};
+	for (const [key, val] of Object.entries(selectors)) {
+		normalized[key.toLowerCase()] = val;
+	}
+
+	const map = {
+		stockNumber: normalized.stocknumber || normalized['stock_number'] || normalized.stock || '',
+		model: normalized.model || '',
+		trim: normalized.trim || '',
+		image: normalized.image || ''
+	};
+
+	for (const [key, sel] of Object.entries(map)) {
+		if (!sel) continue;
+		const el = element.querySelector(sel);
+		if (!el) {
+			console.debug(`⚠️ ${domain} → selector not found for ${key}: ${sel}`);
+			continue;
+		}
+
+		if (el.tagName === 'IMG') {
+			fields[key] = el.src || el.dataset.src || '';
+		} else {
+			fields[key] = el.textContent.replace(/Stock#?:?/i, '').trim();
+		}
+	}
+
+	if (!fields.stockNumber) {
+		const alt = element.querySelector('.stock-number, .value__stock, .stock_label, [data-stock]');
+		if (alt) {
+			fields.stockNumber = alt.textContent.replace(/Stock#?:?/i, '').trim();
+			console.log(`🪄 Fallback stockNumber extracted for ${domain}:`, fields.stockNumber);
+		} else {
+			console.warn(`⚠️ No stockNumber found for card on ${domain}`, element);
+		}
+	}
+
+	console.log(`🔍 extractFields() for ${domain}`, fields);
 	return fields;
-  }
-  
+}
+
 function detectScrollMode() {
 	if (document.querySelector('div.lbx-paginator')) return 'pagination';
 	if (document.querySelector('button.lbx-load-more-btn')) return 'viewmore';
 	return 'infinite';
 }
 
-// ===== MAIN HANDLER =====
 window.$dataHandler = async function (allVehicleCards, csvData, result, testType, highlightCard) {
-	const structure = detectVehicleCardStructure();
-	const fieldSelectors = getFieldSelectors(structure);
-	const cards = document.querySelectorAll(getVehicleCardSelector());
+	const fieldSelectors = await getFieldSelectors();
+	const vehicleSelector = await getVehicleCardSelector();
+	if (!vehicleSelector) {
+		alert("⚠️ No vehicleCard selector found. Please configure it in the popup first.");
+		return [];
+	}
+
+	const cards = document.querySelectorAll(vehicleSelector);
 	const scrollMode = detectScrollMode();
 	let lastProcessingTime = 0;
 
@@ -105,56 +172,91 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 
 	switch (testType) {
 		case "CSV_SRP_DATA_MATCHER": {
-
 			startProcessingSpinner();
 
 			let csvMap = {};
 			if (csvData) csvMap = await csvParser(csvData);
 			if (!result || Array.isArray(result)) result = {};
 
-			const csvHeaders = Object.keys(csvMap[Object.keys(csvMap)[0]] || {});
-			const fieldToCsvMapping = {};
-			Object.keys(window.customFieldMap).forEach(fieldKey => {
-				if (csvHeaders.includes(fieldKey)) fieldToCsvMapping[fieldKey] = fieldKey;
-				else {
-					const match = csvHeaders.find(h => h.toLowerCase() === fieldKey.toLowerCase());
-					if (match) fieldToCsvMapping[fieldKey] = match;
-					else console.warn(`No matching CSV header found for field: ${fieldKey}`);
-				}
-			});
+			const normalizeKey = k => k ? k.replace(/^"+|"+$/g, '').trim().toUpperCase() : '';
 
-			let processedVehicles = 0, vehiclesWithMismatches = 0;
+			const keySynonyms = {
+				STOCKNUMBER: ['STOCK', 'STK', 'STOCK#', 'STOCK_NO', 'STOCK_NO.', 'STOCKNUMBER']
+			};
+
+			const csvHeaders = Object.keys(csvMap[Object.keys(csvMap)[0]] || []);
+			const csvHeadersNorm = csvHeaders.map(h => normalizeKey(h));
+			const fieldToCsvMapping = {};
+
+			for (const fieldKey of Object.keys(window.customFieldMap)) {
+				const normalizedField = normalizeKey(fieldKey);
+				let matchIdx = csvHeadersNorm.indexOf(normalizedField);
+				if (matchIdx === -1) {
+					const synonyms = keySynonyms[normalizedField] || [];
+					matchIdx = csvHeadersNorm.findIndex(h =>
+						synonyms.some(s => normalizeKey(s) === h)
+					);
+				}
+				if (matchIdx !== -1) {
+					fieldToCsvMapping[fieldKey] = csvHeaders[matchIdx];
+				} else {
+					console.warn(`⚠️ No matching CSV header found for field: ${fieldKey}`);
+				}
+			}
+
+			let processedVehicles = 0;
+			let vehiclesWithMismatches = 0;
 
 			for (const srpVehicle of allVehicleCards) {
 				const stockSel = window.customFieldMap.STOCKNUMBER;
-				const srpStockNumber = await getTextFromVehicleCard(srpVehicle, stockSel);
-				const csvVehicle = csvMap[srpStockNumber];
-				if (srpStockNumber && csvVehicle && typeof csvVehicle === 'object') {
-					processedVehicles++;
-					let hasMismatches = false, mismatches = {};
-					for (const [field, selector] of Object.entries(window.customFieldMap)) {
-						if (!selector) continue;
-						const srpRaw = await getTextFromVehicleCard(srpVehicle, selector);
-						const csvHeader = fieldToCsvMapping[field];
-						const csvRaw = csvHeader ? csvVehicle[csvHeader] : undefined;
-						const csvNorm = normalizeValue(field, csvRaw);
-						const srpNorm = normalizeValue(field, srpRaw);
-						if (await isExceptionValue(field, csvNorm, srpNorm)) continue;
-						if (srpNorm !== csvNorm) {
-							hasMismatches = true;
-							mismatches[field] = { csv: csvNorm, srp: srpNorm };
-						}
-					}
-					if (hasMismatches) {
-						vehiclesWithMismatches++;
-						result[srpStockNumber] = { mismatches };
+				let srpStockNumber = await getTextFromVehicleCard(srpVehicle, stockSel);
+
+				srpStockNumber = srpStockNumber?.replace(/^0+/, '').trim().replace(/['"]+/g, '');
+				if (!srpStockNumber) continue;
+
+				const csvVehicle = Object.entries(csvMap).find(([key]) =>
+					normalizeKey(key) === normalizeKey(srpStockNumber)
+				)?.[1];
+
+				if (!csvVehicle) {
+					console.warn(`🚫 CSV vehicle not found for stock: ${srpStockNumber}`);
+					continue;
+				}
+
+				processedVehicles++;
+				let hasMismatches = false;
+				const mismatches = {};
+
+				for (const [field, selector] of Object.entries(window.customFieldMap)) {
+					if (!selector || field.toUpperCase() === "STOCKNUMBER") continue;
+
+					const csvHeader = fieldToCsvMapping[field];
+					const csvRaw = csvHeader ? csvVehicle[csvHeader] : undefined;
+					const srpRaw = await getTextFromVehicleCard(srpVehicle, selector);
+
+					const csvNorm = normalizeValue(field, csvRaw);
+					const srpNorm = normalizeValue(field, srpRaw);
+
+					if (await isExceptionValue(field, csvNorm, srpNorm)) continue;
+					if (srpNorm !== csvNorm) {
+						hasMismatches = true;
+						mismatches[field] = { csv: csvNorm, srp: srpNorm };
+						console.log(`❌ Mismatch for ${srpStockNumber} → ${field}: CSV="${csvNorm}" SRP="${srpNorm}"`);
 					}
 				}
+
+				if (hasMismatches) {
+					vehiclesWithMismatches++;
+					if (!result[srpStockNumber]) result[srpStockNumber] = { mismatches };
+					else Object.assign(result[srpStockNumber].mismatches, mismatches);
+				}
 			}
+
 			console.log(`✅ CSV matcher done: ${processedVehicles} processed, ${vehiclesWithMismatches} mismatched.`);
 			stopProcessingSpinner();
 			return result;
 		}
+
 		case "SMALL_IMAGE_DETECTOR": {
 
 			startProcessingSpinner();
@@ -171,7 +273,16 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 
 				const img = element.querySelector(fieldSelectors.image) || element.querySelector('img');
 				const imageUrl = (img?.dataset?.src || img?.src || '').trim();
-				const { stockNumber, model, trim } = extractFields(element);
+				const { stockNumber, model, trim, image } = await extractFields(element);
+
+				console.log("🔍 ExtractFields Debug", {
+					usedSelectors: await getFieldSelectors(),
+					stockNumber,
+					model,
+					trim,
+					image,
+					elementPreview: element.outerHTML.substring(0, 200) + '...'
+				});
 
 				try {
 					if (model && stockNumber && imageUrl) {
@@ -218,68 +329,54 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 
 			if (!window._ocrCache) window._ocrCache = {};
 
+			const vehicleSelector = await getVehicleCardSelector();
+			const cards = document.querySelectorAll(vehicleSelector);
+			const fieldSelectors = await getFieldSelectors();
+
+			console.log("🚀 COMING_SOON_DETECTOR using dynamic selectors", fieldSelectors);
+
 			for (const element of cards) {
-				if (scrollMode !== 'infinite' && element.classList.contains('processed-card')) continue;
-
 				const start = performance.now();
-				element.classList.remove('waiting-card');
-				element.classList.add('processing-card');
-				if (typeof updateProcessingInfo === 'function') updateProcessingInfo(element, 0, lastProcessingTime);
+				const { stockNumber, model, trim, image } = await getVehicleInfoFromElement(element);
+				const imageUrl = image || '';
 
-				const img = element.querySelector(fieldSelectors.image) || element.querySelector('img');
-				const imageUrl = (img?.dataset?.src || img?.src || '').trim();
-				const { stockNumber, model, trim } = extractFields(element);
+				if (!stockNumber || !model || !imageUrl) {
+					console.warn("⚠️ Skipping card: Missing info", { stockNumber, model, imageUrl });
+					continue;
+				}
 
-				try {
-					if (model && stockNumber && imageUrl) {
-						const exists = result.some(v => v.stockNumber === stockNumber);
+				const exists = result.some(v => v.stockNumber === stockNumber);
 
-						const isComingSoonOrBetter = await highlightCard(element, async () => {
-							if (window._ocrCache[imageUrl] !== undefined) {
-								return window._ocrCache[imageUrl];
-							}
-
-							const betterPhoto = window.isBetterPhotoImage(imageUrl);
-							if (betterPhoto) {
-								window._ocrCache[imageUrl] = true;
-								return true;
-							}
-
-							const ocrResult = await window.isComingSoonImage(imageUrl);
-							window._ocrCache[imageUrl] = ocrResult;
-							return ocrResult;
-						});
-
-						const elapsed = (performance.now() - start) / 1000;
-						if (typeof updateProcessingInfo === 'function')
-							updateProcessingInfo(element, elapsed, lastProcessingTime, true, !!isComingSoonOrBetter, 'COMING_SOON_DETECTOR');
-
-						if (isComingSoonOrBetter && !exists) {
-							element.classList.add('coming-soon-card');
-							result.push({ model, trim, stockNumber, imageUrl });
-							console.log(`✅ Coming Soon / BetterPhoto ${stockNumber} (${model}) - Total: ${result.length}`);
-						}
-
-						lastProcessingTime = elapsed;
-					} else {
-						element.classList.remove('processing-card');
-						element.classList.add('processed-card');
-						if (typeof updateProcessingInfo === 'function')
-							updateProcessingInfo(element, (performance.now() - start) / 1000, lastProcessingTime, true, false, 'COMING_SOON_DETECTOR');
-						console.log('⚠️ Missing data', { hasModel: !!model, hasStockNumber: !!stockNumber, hasImage: !!imageUrl });
+				const isComingSoonOrBetter = await highlightCard(element, async () => {
+					if (window._ocrCache[imageUrl] !== undefined) {
+						return window._ocrCache[imageUrl];
 					}
-				} catch (e) {
-					element.classList.remove('processing-card');
-					element.classList.add('processed-card');
-					if (typeof updateProcessingInfo === 'function')
-						updateProcessingInfo(element, (performance.now() - start) / 1000, lastProcessingTime, true, false, 'COMING_SOON_DETECTOR');
-					console.error('💥 Error processing coming soon:', e);
+
+					const betterPhoto = window.isBetterPhotoImage(imageUrl);
+					if (betterPhoto) {
+						window._ocrCache[imageUrl] = true;
+						return true;
+					}
+
+					const ocrResult = await window.isComingSoonImage(imageUrl);
+					window._ocrCache[imageUrl] = ocrResult;
+					return ocrResult;
+				});
+
+				const elapsed = (performance.now() - start) / 1000;
+				if (typeof updateProcessingInfo === 'function') {
+					updateProcessingInfo(element, elapsed, 0, true, !!isComingSoonOrBetter, 'COMING_SOON_DETECTOR');
+				}
+
+				if (isComingSoonOrBetter && !exists) {
+					element.classList.add('coming-soon-card');
+					result.push({ model, trim, stockNumber, imageUrl });
+					console.log(`✅ Coming Soon / BetterPhoto ${stockNumber} (${model}) - Total: ${result.length}`);
 				}
 			}
 			break;
 		}
 	}
-
 	return result;
 };
 
@@ -289,28 +386,56 @@ function isBetterPhotoImage(imageUrl) {
 
 // ===== CSV UTILS =====
 async function csvParser(csvVehicle) {
-	const lines = csvVehicle.trim().split('\n');
-	const headers = lines[0].split('|');
+	const delimiters = ['|', ',', ';', '\t'];
+	const lines = csvVehicle.trim().split(/\r?\n/).filter(Boolean);
+	if (lines.length < 2) return {};
+
+	const headerLine = lines[0];
+	const delimiter = delimiters.find(d => headerLine.includes(d)) || ',';
+	const headers = headerLine.split(delimiter).map(h => h.trim());
 	const map = {};
+
 	for (let i = 1; i < lines.length; i++) {
-		const values = lines[i].split('|');
+		const values = lines[i].split(delimiter);
 		const entry = {};
-		headers.forEach((key, idx) => entry[key.trim()] = values[idx]?.trim() ?? '');
-		const stockNumber = entry['StockNumber'];
-		if (stockNumber) map[stockNumber] = entry;
+		headers.forEach((h, idx) => entry[h] = values[idx]?.trim() ?? '');
+		const stock =
+			entry['StockNumber'] ||
+			entry['STOCKNUMBER'] ||
+			entry['Stock'] ||
+			entry['STK'];
+		if (stock) map[stock.trim()] = entry;
 	}
 	return map;
 }
 
 function normalizeValue(k, v) {
-	if (!v) return '';
-	let n = v.toString();
-	switch (k) {
-		case 'CONDITION': return n.toLowerCase();
-		case 'PRICE': return n.replace(/[$,]/g, '').toLowerCase();
-		case 'KILOMETERS': return n.replace(/[km\s,]|\.00000/g, '');
-		default: return n.replace(/-card\.jpg|-THIRDPARTY\.jpg/g, '').trim();
+	if (v == null) return '';
+	let n = String(v)
+		.replace(/^"+|"+$/g, '')
+		.replace(/[\n\r\t]/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+
+	const key = k.toUpperCase();
+
+	if (/(PRICE|SELLINGPRICE|MSRP|INVOICE|BOOKVALUE|INTERNET_PRICE)/.test(key)) {
+		return n.replace(/[^0-9.]/g, '');
 	}
+
+	if (/(KM|KILOMETERS|MILE|ODOMETER)/.test(key)) {
+		return n.replace(/[^\d]/g, '');
+	}
+
+	if (key.includes('STOCK')) {
+		return n.toUpperCase().replace(/\s+/g, '');
+	}
+
+	if (key === 'CONDITION') {
+		return n.toLowerCase();
+	}
+
+	return n.replace(/-card\.jpg|-THIRDPARTY\.jpg/gi, '').trim();
 }
 
 async function isExceptionValue(k, cv, sv) {
@@ -319,7 +444,7 @@ async function isExceptionValue(k, cv, sv) {
 	if (k === 'KILOMETERS' && sv.length === 17) return true;
 	if (k === 'VIN' && sv.length !== 17) return true;
 	const any = "*.*";
-	const exc = [{ csv: [any], srp: [""] }, { csv: ["0"], srp: ["–"] }, { csv: [""], srp: ["contactus"] }];
+	const exc = [{ csv: [any], srp: [""] }, { csv: ["0"], srp: ["–"] }, { csv: [""], srp: ["contactus"] }, { csv: [""], srp: ["contact us"] }];
 	return exc.some(e => e.srp.includes(sv) && (e.csv.includes(cv) || e.csv.includes(any)));
 }
 
@@ -332,33 +457,19 @@ async function getTextFromVehicleCard(vehicleCard, selector) {
 }
 
 window.extractCSVHeaders = function (csvData) {
+	if (!csvData || typeof csvData !== 'string') return [];
 
-	if (!csvData || typeof csvData !== 'string') {
-		console.warn("Invalid CSV data");
-		return [];
-	}
+	const delimiters = ['|', ',', ';', '\t'];
+	const lines = csvData.trim().split(/\r?\n/).filter(Boolean);
+	if (lines.length === 0) return [];
 
-	const lines = csvData.split('\n');
+	const headerLine = lines[0];
+	const detected = delimiters.find(d => headerLine.includes(d)) || ',';
 
-	if (lines.length === 0) {
-		console.warn("No lines found in CSV");
-		return [];
-	}
+	const headers = headerLine.split(detected).map(h => h.trim().replace(/^"|"$/g, ''));
 
-	const firstLine = lines[0];
-
-	const delimiters = [',', '|', '\t'];
-	let bestHeaders = [];
-	let maxFields = 0;
-
-	for (const delimiter of delimiters) {
-		const headers = firstLine.split(delimiter).map(header => header.trim()).filter(Boolean);
-		if (headers.length > maxFields) {
-			maxFields = headers.length;
-			bestHeaders = headers;
-		}
-	}
-	return bestHeaders;
+	console.log(`🧩 Detected delimiter: '${detected}' → Headers:`, headers);
+	return headers;
 };
 
 globalThis.extractCSVHeaders = window.extractCSVHeaders;

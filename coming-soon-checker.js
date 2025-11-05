@@ -1,3 +1,4 @@
+// coming-soon-checker.js
 document.getElementById('check missing images').addEventListener('click', async (event) => {
     const methodSelectionDiv = document.getElementById('methodSelectionDiv');
     const ocrInput = document.getElementById('ocrInput');
@@ -24,28 +25,20 @@ async function startImageScanning() {
     const openaiInput = document.getElementById('openaiInput');
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const isApiRequired = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-            return document.querySelector('div.lbx-paginator') !== null;
-        }
-    });
 
-    if (isApiRequired[0].result) {
-        if (selectedMethod === 'ocr') {
-            const storageResult = await chrome.storage.local.get(['ocrKey']);
-            if (!storageResult.ocrKey) {
-                ocrInput.style.display = 'block';
-                openaiInput.style.display = 'none';
-                return;
-            }
-        } else if (selectedMethod === 'openai') {
-            const storageResult = await chrome.storage.local.get(['openaiKey']);
-            if (!storageResult.openaiKey) {
-                openaiInput.style.display = 'block';
-                ocrInput.style.display = 'none';
-                return;
-            }
+    if (selectedMethod === 'ocr') {
+        const storageResult = await chrome.storage.local.get(['ocrKey']);
+        if (!storageResult.ocrKey) {
+            ocrInput.style.display = 'block';
+            openaiInput.style.display = 'none';
+            return;
+        }
+    } else if (selectedMethod === 'openai') {
+        const storageResult = await chrome.storage.local.get(['openaiKey']);
+        if (!storageResult.openaiKey) {
+            openaiInput.style.display = 'block';
+            ocrInput.style.display = 'none';
+            return;
         }
     }
 
@@ -226,7 +219,6 @@ function callFindUrlsAndModels(testType) {
         return false;
     };
     
-    // Ensure functions are available before calling them
     if (typeof addProcessingStyles === 'function') {
         addProcessingStyles(globalStyleElement);
     }
@@ -255,7 +247,6 @@ function callFindUrlsAndModels(testType) {
                 siteName: window.location.hostname.replace('www.', '')
             });
             
-            // Ensure addCleanupButton is available before calling it
             if (typeof addCleanupButton === 'function') {
                 addCleanupButton();
             } else {

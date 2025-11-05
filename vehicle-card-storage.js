@@ -1,3 +1,4 @@
+// vehicle-card-storage.js
 const VEHICLE_CARD_KEY = 'vehicleCardSelectorMap';
 
 export async function getCurrentDomain() {
@@ -12,7 +13,7 @@ export async function getVehicleCardSelectors(domain) {
   if (stored[VEHICLE_CARD_KEY] && stored[VEHICLE_CARD_KEY][domain]) {
     return stored[VEHICLE_CARD_KEY][domain];
   }
-  // defaults
+
   return {
     card: 'div.vehicle-card, div.vehicle-car__section',
     stockNumber: '.stock-number-value, .value__stock',
