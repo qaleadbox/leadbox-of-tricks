@@ -1,3 +1,4 @@
+// content-intellisense.js
 class ContentIntellisenseSystem {
     constructor() {
         this.currentSite = window.location.hostname.replace('www.', '');
@@ -74,6 +75,7 @@ class ContentIntellisenseSystem {
     }
 
     createSaveIcons() {
+        if (!this.enabled) return;
         this.saveIconWord = document.createElement('button');
         this.saveIconWord.title = 'Save current word';
         this.saveIconWord.textContent = '💾';

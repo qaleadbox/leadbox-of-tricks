@@ -1,3 +1,4 @@
+// intellisense-system.js
 class IntellisenseSystem {
     constructor() {
         this.currentSite = '';
