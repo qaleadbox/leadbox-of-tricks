@@ -385,28 +385,63 @@ function isBetterPhotoImage(imageUrl) {
 }
 
 // ===== CSV UTILS =====
-async function csvParser(csvVehicle) {
-	const delimiters = ['|', ',', ';', '\t'];
-	const lines = csvVehicle.trim().split(/\r?\n/).filter(Boolean);
-	if (lines.length < 2) return {};
+async function csvParser(csvText) {
+    if (!csvText || typeof csvText !== "string") return {};
 
-	const headerLine = lines[0];
-	const delimiter = delimiters.find(d => headerLine.includes(d)) || ',';
-	const headers = headerLine.split(delimiter).map(h => h.trim());
-	const map = {};
+    const lines = csvText
+        .trim()
+        .split(/\r?\n/)
+        .filter(Boolean);
 
-	for (let i = 1; i < lines.length; i++) {
-		const values = lines[i].split(delimiter);
-		const entry = {};
-		headers.forEach((h, idx) => entry[h] = values[idx]?.trim() ?? '');
-		const stock =
-			entry['StockNumber'] ||
-			entry['STOCKNUMBER'] ||
-			entry['Stock'] ||
-			entry['STK'];
-		if (stock) map[stock.trim()] = entry;
-	}
-	return map;
+    if (lines.length < 2) return {};
+
+    const possibleDelimiters = [',', '|', ';', '\t'];
+    const headerLine = lines[0];
+
+    const delimiter = possibleDelimiters.find(d => headerLine.includes(d)) || ',';
+
+    const clean = s =>
+        (s || "")
+            .trim()
+            .replace(/^"+|"+$/g, "")
+            .replace(/^'+|'+$/g, "")
+            .trim();
+
+    const rawHeaders = headerLine.split(delimiter);
+    const headers = rawHeaders.map(h => clean(h));
+
+    const uniqueHeaders = [];
+    headers.forEach(h => {
+        if (!uniqueHeaders.includes(h)) uniqueHeaders.push(h);
+    });
+
+    console.log("🧭 FINAL HEADERS:", uniqueHeaders);
+
+    const map = {};
+
+    for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(delimiter);
+        const entry = {};
+
+        uniqueHeaders.forEach((h, idx) => {
+            entry[h] = clean(cols[idx]);
+        });
+
+        const stock = clean(
+            entry["StockNumber"] ||
+            entry["STOCKNUMBER"] ||
+            entry["Stock"] ||
+            entry["Stk"]
+        );
+
+        if (stock) {
+            map[stock] = entry;
+        }
+    }
+
+    console.log("📦 FINAL CSV MAP:", map);
+
+    return map;
 }
 
 function normalizeValue(k, v) {
