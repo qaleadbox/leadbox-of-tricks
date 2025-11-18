@@ -341,7 +341,7 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 				const imageUrl = image || '';
 
 				if (!stockNumber || !model || !imageUrl) {
-					console.warn("⚠️ Skipping card: Missing info", { stockNumber, model, imageUrl });
+					console.warn("⚠️ Skipping card: Missing info", { stockNumber, model, image });
 					continue;
 				}
 

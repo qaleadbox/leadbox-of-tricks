@@ -64,7 +64,7 @@ export async function checkImageWithOCR(imageUrl) {
         }
         const ocrResult = await response.json();
         const text = ocrResult?.ParsedResults?.[0]?.ParsedText?.toLowerCase() || '';
-        const isComingSoon = text.includes('coming soon');
+        const isComingSoon = text.includes('soon');
 
         if (isComingSoon) {
             console.log('New coming soon image size found, adding to cache');
