@@ -99,7 +99,7 @@ loadManualSelectors();
 
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const module = await import(chrome.runtime.getURL('vehicle-card-storage.js'));
+    const module = await import(chrome.runtime.getURL('../storage/vehicle-card-storage.js'));
     const {
       getCurrentDomain,
       getVehicleCardSelectors,
@@ -380,9 +380,9 @@ featuresList.addEventListener('mouseleave', function () {
     }, 100);
 });
 
-import { exportFieldMapsToJson, importFieldMapsFromJson } from './field-map-storage.js';
-import { exportToCSVFile } from './$csv-exporter.js';
-import { IntellisenseSystem } from './intellisense-system.js';
+import { exportFieldMapsToJson, importFieldMapsFromJson } from '../storage/field-map-storage.js';
+import { exportToCSVFile } from '../core/$csv-exporter.js';
+import { IntellisenseSystem } from '../intellisense/intellisense-system.js';
 
 const SETTINGS_KEY = 'featureSettings';
 const toggleEditIconEl    = document.getElementById('toggleEditIcon');

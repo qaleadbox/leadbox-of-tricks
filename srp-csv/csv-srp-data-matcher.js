@@ -1,5 +1,5 @@
 // csv-srp-data-matcher.js
-import { saveFieldMapValues, getFieldMapValues } from './field-map-storage.js';
+import { saveFieldMapValues, getFieldMapValues } from '../storage/field-map-storage.js';
 
 export async function getCurrentFieldMap() {
     const customFieldMap = {};
@@ -112,7 +112,7 @@ async function initializeDataHandler() {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            files: ['$data-handler.js']
+            files: ['./core/$data-handler.js']
         });
     } catch (error) {
         console.error('Error initializing data handler:', error);
@@ -221,7 +221,7 @@ export async function callFindUrlsAndModels() {
 
                     await chrome.scripting.executeScript({
                         target: { tabId: tab.id },
-                        files: ['$scrolling.js', '$data-handler.js']
+                        files: ['./core/$scrolling.js', './core/$data-handler.js']
                     });
 
                     chrome.scripting.executeScript({
@@ -347,7 +347,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
-                files: ['$scrolling.js', '$data-handler.js']
+                files: ['./core/$scrolling.js', './core/$data-handler.js']
             });
 
             chrome.scripting.executeScript({

@@ -691,7 +691,7 @@ Steps:
     <textarea id="openaiKey" placeholder="Enter your OpenAI API key here..." style="height: 30px; min-height: 30px; max-height: 30px; resize: none;"></textarea>
     <button id="saveOpenAIKey">Save OpenAI Key</button>
   </div>
-  <script type="module" src="coming-soon-checker.js"></script>
+  <script type="module" src="../coming-soon/coming-soon-checker.js"></script>
 
   <button id="check small images">Scan for Small Images <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
   <div id="smallImageSettingsDiv" style="display: none; margin-bottom: 10px; padding: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 4px;">
@@ -708,7 +708,7 @@ Steps:
     </div>
     <button id="startSmallImageScanning" style="margin-top: 10px;">Start Scanning</button>
   </div>
-  <script type="module" src="small-images-checker.js"></script>
+  <script type="module" src="../srp-csv/small-images-checker.js"></script>
 
   <button id="match csv data with SRP cards information">Validate SRP Cards with CSV Data <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
   <div id="csvInput" style="display: none;">
@@ -723,7 +723,7 @@ Steps:
       <button id="processCSV" class="action-button">Process CSV</button>
     </div>
   </div>
-  <script type="module" src="csv-srp-data-matcher.js"></script>
+  <script type="module" src="../srp-csv/csv-srp-data-matcher.js"></script>
 
   <button id="Copy Unordered List Links">Copy Unordered List Links <span class="availability-text">(AVAILABLE ON SITEMAPs)</span></button>
   <div class="modal-overlay" id="modalOverlay"></div>
@@ -743,10 +743,10 @@ Steps:
     <button id="processHrefs">Extract the links</button>
   </div>
 
-  <script type="module" src="ul-link-extractor.js"></script>
+  <script type="module" src="../sitemap-tools/ul-link-extractor.js"></script>
   <script type="module" src="version.js"></script>
-  <script type="module" src="intellisense-system.js"></script>
-  <script type="module" src="popup.js"></script>
+  <script type="module" src="../intellisense/intellisense-system.js"></script>
+  <script type="module" src="../popup/popup.js"></script>
 
   <button class="docs-button" title="View Documentation">i</button>
   <div class="docs-popup">
@@ -837,7 +837,6 @@ Steps:
       <div style="font-size:12px; color:#ccc;">Changes apply immediately on new pages; reload pages for full effect.</div>
     </div>
   </div>
-<script type="module" src="vehicle-card-ui.js"></script>
 
 </body>
 

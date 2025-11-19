@@ -80,7 +80,7 @@ async function startSmallImageScanning() {
 
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
-                files: ['$card-highlighter.js', '$scrolling.js', '$data-handler.js']
+                files: ['./core/$card-highlighter.js', './core/$scrolling.js', './core/$data-handler.js']
             });
 
             const threshold = parseInt(document.getElementById('imageSizeThreshold').value) || 10;

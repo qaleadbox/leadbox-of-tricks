@@ -13,7 +13,7 @@
     "https://my.leadboxhq.net/*"
   ],
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "/popup/popup.html",
     "default_icon": {
       "16": "/icons/16x16/icon1.png",
       "48": "/icons/48x48/icon.png",
@@ -27,7 +27,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "image-checker/openai-image-checker.js",
+        "/coming-soon/openai-image-checker.js",
         "config.js"
       ],
       "matches": [
@@ -36,10 +36,10 @@
     },
     {
       "resources": [
-        "$scrolling.js",
-        "$data-handler.js",
-        "field-map-storage.js",
-        "$csv-exporter.js"
+        "/core/$scrolling.js",
+        "/core/$data-handler.js",
+        "/storage/field-map-storage.js",
+        "/core/$csv-exporter.js"
       ],
       "matches": ["<all_urls>"]
     }
@@ -51,14 +51,14 @@
         "https://car-dealer-production-qa.azurewebsites.net/*" 
         ],
       "js": [
-        "lead-print-icon-injector.js",
-        "lead-edit-icon-injector.js"
+        "/ims-tools/lead-print-icon-injector.js",
+        "/ims-tools/lead-edit-icon-injector.js"
       ],
       "type": "module"
     },
     {
       "matches": ["<all_urls>"],
-      "js": ["content-intellisense.js"],
+      "js": ["/intellisense/content-intellisense.js"],
       "type": "module"
     }
   ],

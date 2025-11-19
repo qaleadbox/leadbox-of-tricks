@@ -46,7 +46,7 @@ async function startImageScanning() {
 
     await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        files: ['$card-highlighter.js', '$scrolling.js', '$data-handler.js']
+        files: ['./core/$card-highlighter.js', './core/$scrolling.js', './core/$data-handler.js']
     });
 
     await chrome.scripting.executeScript({
