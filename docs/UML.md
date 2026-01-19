@@ -1,62 +1,57 @@
-          ┌──────────────────────────┐
-          │        Popup UI          │
-          │──────────────────────────│
-          │ + popup.html             │
-          │ + popup.js               │
-          │ + buttons: export/import │
-          │ + input: selectors       │
-          └──────────┬───────────────┘
-                     │
-                     │ uses chrome.runtime + chrome.storage
-                     ▼
-┌──────────────────────────────────────────────────────────┐
-│                 vehicle-card-store.js                    │
-│──────────────────────────────────────────────────────────│
-│ + getCurrentDomain(): string                             │
-│ + getVehicleCardSelectors(domain): obj                   │
-│ + setVehicleCardSelectors(domain, map): void             │
-│ + exportVehicleCardSelectors(): downloads JSON           │
-│ + importVehicleCardSelectors(file): loads JSON           │
-│──────────────────────────────────────────────────────────│
-│ * called by popup.js                                     │
-│ * uses chrome.storage.local                              │
-│ * persists mappings per-domain                           │
-│ * exposes helpers via module exports                     │
-└──────────┬───────────────────────────────────────────────┘
-           │
-           │ later used in injected context
-           ▼
-┌──────────────────────────────────────────────────────────┐
-│             local-storage.js                      │
-│──────────────────────────────────────────────────────────│
-│ + window.getActiveVehicleSelectors(): Promise<object>    │
-│    → Loads selectors from chrome.storage.local           │
-│──────────────────────────────────────────────────────────│
-│ * injected dynamically via chrome.scripting              │
-│ * defines a global function on window                    │
-└──────────┬───────────────────────────────────────────────┘
-           │
-           ▼
-┌──────────────────────────────────────────────────────────┐
-│                 $data-handler.js                         │
-│──────────────────────────────────────────────────────────│
-│ + window.$dataHandler(allVehicleCards, ...)              │
-│    - Uses getActiveVehicleSelectors()                    │
-│    - Detects card structure                              │
-│    - Extracts model, trim, stock, image                  │
-│──────────────────────────────────────────────────────────│
-│ * injected dynamically after local-storage.js     │
-│ * runs directly in the DOM of target page                │
-│ * calls chrome.runtime.sendMessage for exports           │
-└──────────┬───────────────────────────────────────────────┘
-           │
-           ▼
-┌──────────────────────────────────────────────────────────┐
-│                background.js                             │
-│──────────────────────────────────────────────────────────│
-│ onMessage(type='exportToCSV') → exportToCSVFile()        │
-│──────────────────────────────────────────────────────────│
-│ * receives chrome.runtime messages                       │
-│ * performs file creation (Blob + anchor click)           │
-│ * runs always in background (service_worker)             │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                         Popup UI                             │
+│──────────────────────────────────────────────────────────────│
+│ popup.html / popup.js                                        │
+│ • Builds selector inputs & module buttons                    │
+│ • Imports storage helpers to read/write chrome.storage       │
+│ • Launches feature scripts via chrome.scripting.executeScript│
+└───────────────┬──────────────────────────────────────────────┘
+                │ imports
+                ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    storage helpers                            │
+│──────────────────────────────────────────────────────────────│
+│ storage/vehicle-card-storage.js                               │
+│ storage/field-map-storage.js                                  │
+│ • Persist per-domain CSS selectors + arbitrary field maps     │
+│ • Expose export/import helpers used exclusively by popup.js   │
+└───────────────┬──────────────────────────────────────────────┘
+                │ triggers feature launchers
+                ▼
+┌──────────────────────────────────────────────────────────────┐
+│                   Feature launchers (popup)                   │
+│──────────────────────────────────────────────────────────────│
+│ coming-soon/coming-soon-checker.js                            │
+│ srp-csv/csv-srp-data-matcher.js                               │
+│ srp-csv/small-images-checker.js                               │
+│ ims-tools/* , sitemap-tools/*, intellisense/*                 │
+│ • Validate API keys / thresholds                              │
+│ • Request selector data                                       │
+│ • Inject shared runtime + module-specific code into the tab   │
+└───────────────┬──────────────────────────────────────────────┘
+                │ chrome.scripting.executeScript()
+                ▼
+┌──────────────────────────────────────────────────────────────┐
+│              Injected page-context runtime (core/)            │
+│──────────────────────────────────────────────────────────────│
+│ core/$data-handler.js     → loads selectors, iterates cards   │
+│ core/$card-highlighter.js → visual states + tooltips          │
+│ core/$scrolling.js        → auto-scroll / pagination helpers  │
+│ core/$csv-exporter.js     → client-side CSV downloads         │
+│ • All run inside SRP DOM (no background needed)               │
+│ • Feature launchers call into these helpers to process cards  │
+└───────────────┬──────────────────────────────────────────────┘
+                │ chrome.runtime.sendMessage()
+                ▼
+┌──────────────────────────────────────────────────────────────┐
+│                      background.js                           │
+│──────────────────────────────────────────────────────────────│
+│ • Rotates toolbar icons while processing                     │
+│ • Brokers OCR / OpenAI requests via coming-soon/* adapters   │
+│ • Stops spinner when modules report completion               │
+└──────────────────────────────────────────────────────────────┘
+
+Supporting modules plugged into the runtime:
+• srp-csv/csv-srp-data-matcher.js – parses pasted CSV, compares against `$data-handler`
+• srp-csv/small-images-checker.js – inspects image dimensions/size and flags cards
+• coming-soon/coming-soon-checker.js – checks each card image via OCR or OpenAI, then exports

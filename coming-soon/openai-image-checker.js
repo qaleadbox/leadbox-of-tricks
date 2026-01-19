@@ -38,18 +38,26 @@ async function getImageFileSize(url) {
 
 export async function checkImageWithOpenAI(imageUrl) {
     try {
-        const storageResult = await chrome.storage.local.get(['openaiKey']);
+        const storageResult = await chrome.storage.local.get(['openaiKey', 'enableComingSoonCache']);
         const openaiKey = storageResult.openaiKey;
+        const cacheEnabled = storageResult.enableComingSoonCache !== undefined ? storageResult.enableComingSoonCache : true;
+
+        console.log('🔧 Cache setting:', cacheEnabled ? 'ENABLED' : 'DISABLED');
 
         if (!openaiKey) {
             throw new Error('OpenAI API key not found. Please configure it in the extension popup.');
         }
 
         const imageSize = await getImageFileSize(imageUrl);
-        if (comingSoonImageSizes.has(imageSize)) {
-            console.log('Found cached coming soon image size, skipping API call');
+        console.log('🔢 Image file size:', imageSize, 'bytes for:', imageUrl);
+        console.log('🗂️ Current cached sizes:', Array.from(comingSoonImageSizes));
+
+        if (cacheEnabled && comingSoonImageSizes.has(imageSize)) {
+            console.log('✅ CACHED: Image size', imageSize, 'bytes was previously detected as "coming soon" for:', imageUrl);
+            console.warn('⚠️ WARNING: This image has same file size as a "coming soon" image, returning TRUE without checking!');
             return true;
         }
+        console.log('🔍 Checking image via OpenAI API. Size:', imageSize, 'URL:', imageUrl);
 
         const requestBody = {
             model: "gpt-4o",
@@ -80,13 +88,35 @@ export async function checkImageWithOpenAI(imageUrl) {
         }
 
         const result = await response.json();
-        const text = result?.choices?.[0]?.message?.content?.toLowerCase() || '';
-        const isComingSoon = text.includes('true');
+        const text = result?.choices?.[0]?.message?.content?.trim() || '';
+        console.log('OpenAI raw response for', imageUrl, ':', text);
 
-        if (isComingSoon) {
-            console.log('New coming soon image size found, adding to cache');
+        // More robust parsing: check for "true" or "false" in the response
+        const textLower = text.toLowerCase();
+        let isComingSoon = false;
+
+        if (/\btrue\b/.test(textLower) && !/\bfalse\b/.test(textLower)) {
+            // Contains "true" but not "false"
+            isComingSoon = true;
+        } else if (/\bfalse\b/.test(textLower) && !/\btrue\b/.test(textLower)) {
+            // Contains "false" but not "true"
+            isComingSoon = false;
+        } else if (/^true/i.test(text)) {
+            // Starts with "true" (fallback)
+            isComingSoon = true;
+        } else if (/^false/i.test(text)) {
+            // Starts with "false" (fallback)
+            isComingSoon = false;
+        }
+
+        console.log('OpenAI decision: isComingSoon =', isComingSoon);
+
+        if (isComingSoon && cacheEnabled) {
+            console.log('New coming soon image size found, adding to cache. Size:', imageSize);
             comingSoonImageSizes.add(imageSize);
             await saveToStorage();
+        } else if (isComingSoon && !cacheEnabled) {
+            console.log('Coming soon detected but caching is DISABLED, not saving to cache');
         }
 
         return isComingSoon;

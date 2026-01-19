@@ -38,18 +38,26 @@ async function getImageFileSize(url) {
 
 export async function checkImageWithOCR(imageUrl) {
     try {
-        const storageResult = await chrome.storage.local.get(['ocrKey']);
+        const storageResult = await chrome.storage.local.get(['ocrKey', 'enableComingSoonCache']);
         const ocrKey = storageResult.ocrKey;
+        const cacheEnabled = storageResult.enableComingSoonCache !== undefined ? storageResult.enableComingSoonCache : true;
+
+        console.log('🔧 Cache setting:', cacheEnabled ? 'ENABLED' : 'DISABLED');
 
         if (!ocrKey) {
             throw new Error('OCR API key not found. Please configure it in the extension popup.');
         }
 
         const imageSize = await getImageFileSize(imageUrl);
-        if (comingSoonImageSizes.has(imageSize)) {
-            console.log('Found cached coming soon image size, skipping API call');
+        console.log('🔢 Image file size:', imageSize, 'bytes for:', imageUrl);
+        console.log('🗂️ Current cached sizes:', Array.from(comingSoonImageSizes));
+
+        if (cacheEnabled && comingSoonImageSizes.has(imageSize)) {
+            console.log('✅ CACHED: Image size', imageSize, 'bytes was previously detected as "coming soon" for:', imageUrl);
+            console.warn('⚠️ WARNING: This image has same file size as a "coming soon" image, returning TRUE without checking!');
             return true;
         }
+        console.log('🔍 Checking image via OCR API. Size:', imageSize, 'URL:', imageUrl);
 
         const params = new URLSearchParams({
             apikey: ocrKey,
@@ -63,13 +71,17 @@ export async function checkImageWithOCR(imageUrl) {
             throw new Error(`OCR API error: ${response.status} - ${response.statusText}`);
         }
         const ocrResult = await response.json();
-        const text = ocrResult?.ParsedResults?.[0]?.ParsedText?.toLowerCase() || '';
-        const isComingSoon = text.includes('soon');
+        const text = ocrResult?.ParsedResults?.[0]?.ParsedText || '';
+        console.log('OCR raw response for', imageUrl, ':', text);
+        const isComingSoon = text.toLowerCase().includes('soon');
+        console.log('OCR decision: isComingSoon =', isComingSoon);
 
-        if (isComingSoon) {
-            console.log('New coming soon image size found, adding to cache');
+        if (isComingSoon && cacheEnabled) {
+            console.log('New coming soon image size found, adding to cache. Size:', imageSize);
             comingSoonImageSizes.add(imageSize);
             await saveToStorage();
+        } else if (isComingSoon && !cacheEnabled) {
+            console.log('Coming soon detected but caching is DISABLED, not saving to cache');
         }
 
         return isComingSoon;

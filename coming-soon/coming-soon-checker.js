@@ -1,14 +1,12 @@
 // coming-soon-checker.js
+
+// Toggle expansion of method selection div
 document.getElementById('check missing images').addEventListener('click', async (event) => {
     const methodSelectionDiv = document.getElementById('methodSelectionDiv');
     const ocrInput = document.getElementById('ocrInput');
     const openaiInput = document.getElementById('openaiInput');
-    const ocrKeyTextarea = document.getElementById('ocrKey');
-    const openaiKeyTextarea = document.getElementById('openaiKey');
-    const saveOcrKeyButton = document.getElementById('saveOcrKey');
-    const saveOpenAIKeyButton = document.getElementById('saveOpenAIKey');
 
-    if (methodSelectionDiv.style.display === 'none') {
+    if (methodSelectionDiv.style.display === 'none' || methodSelectionDiv.style.display === '') {
         methodSelectionDiv.style.display = 'block';
         return;
     } else {
@@ -26,6 +24,7 @@ async function startImageScanning() {
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
+    // Check if API key exists
     if (selectedMethod === 'ocr') {
         const storageResult = await chrome.storage.local.get(['ocrKey']);
         if (!storageResult.ocrKey) {
@@ -44,11 +43,27 @@ async function startImageScanning() {
 
     const testType = "COMING_SOON_DETECTOR";
 
+    // Inject required scripts
     await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        files: ['./core/$card-highlighter.js', './core/$scrolling.js', './core/$data-handler.js']
+        files: ['/core/$card-highlighter.js', '/core/$scrolling.js', '/core/$data-handler.js']
     });
 
+    // Load manual selectors into window before running
+    await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: async () => {
+            const domain = location.hostname.replace(/^www\./, '');
+            const stored = await chrome.storage.local.get('manualVehicleSelectors');
+            const all = stored.manualVehicleSelectors || {};
+            const selectors = all[domain] || all.global || {};
+            if (!window.manualVehicleSelectors) window.manualVehicleSelectors = {};
+            window.manualVehicleSelectors[domain] = selectors;
+            console.log('Loaded selectors for domain:', domain, selectors);
+        }
+    });
+
+    // Inject and run the scanner
     await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: callFindUrlsAndModels,
@@ -88,87 +103,75 @@ document.getElementById('saveOpenAIKey').addEventListener('click', async () => {
     }
 });
 
-chrome.storage.local.get(['ocrKey', 'openaiKey', 'selectedImageCheckMethod'], (result) => {
+// Load saved API keys, selected method, and cache setting
+chrome.storage.local.get(['ocrKey', 'openaiKey', 'selectedImageCheckMethod', 'enableComingSoonCache'], (result) => {
     if (result.ocrKey) {
         document.getElementById('ocrKey').value = result.ocrKey;
     }
     if (result.openaiKey) {
         document.getElementById('openaiKey').value = result.openaiKey;
     }
-    
+
     const savedMethod = result.selectedImageCheckMethod || 'ocr';
     document.getElementById(savedMethod + 'Method').checked = true;
     console.log('Popup: Loaded saved method:', savedMethod);
+
+    // Load cache setting (default to true for backward compatibility)
+    const cacheEnabled = result.enableComingSoonCache !== undefined ? result.enableComingSoonCache : true;
+    document.getElementById('enableComingSoonCache').checked = cacheEnabled;
+    console.log('Popup: Loaded cache setting:', cacheEnabled);
 });
 
+// Save selected method on change
 document.querySelectorAll('input[name="imageCheckMethod"]').forEach(radio => {
     radio.addEventListener('change', async (event) => {
         const ocrInput = document.getElementById('ocrInput');
         const openaiInput = document.getElementById('openaiInput');
-        
+
         await chrome.storage.local.set({ selectedImageCheckMethod: event.target.value });
         console.log('Popup: Saved method selection:', event.target.value);
-        
-        if (event.target.value === 'ocr') {
-            ocrInput.style.display = 'none';
-            openaiInput.style.display = 'none';
-        } else if (event.target.value === 'openai') {
-            ocrInput.style.display = 'none';
-            openaiInput.style.display = 'none';
-        }
+
+        // Hide API key inputs when changing method
+        ocrInput.style.display = 'none';
+        openaiInput.style.display = 'none';
     });
 });
 
+// Save cache setting on change
+document.getElementById('enableComingSoonCache').addEventListener('change', async (event) => {
+    const cacheEnabled = event.target.checked;
+    await chrome.storage.local.set({ enableComingSoonCache: cacheEnabled });
+    console.log('Popup: Saved cache setting:', cacheEnabled);
+
+    // Clear cache if disabling
+    if (!cacheEnabled) {
+        await chrome.storage.local.remove('comingSoonImageSizes');
+        console.log('Popup: Cleared comingSoonImageSizes cache');
+    }
+});
+
+// Main function to inject into page
 function callFindUrlsAndModels(testType) {
     let scannedVehicles = 0;
     let result = [];
-    let lastProcessingTime = 0;
-    let globalStyleElement = null;
     let isProcessing = true;
 
     try {
-        chrome.runtime.sendMessage({ 
-            type: 'startProcessing'
-        }).catch(error => {
+        chrome.runtime.sendMessage({ type: 'startProcessing' }).catch(error => {
             console.warn('Could not send startProcessing message:', error);
         });
     } catch (error) {
         console.warn('Error sending startProcessing message:', error);
     }
 
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            mutation.addedNodes.forEach((node) => {
-                if (node.nodeType === 1) {
-                    const cards = node.classList?.contains('vehicle-car__section') 
-                        ? [node] 
-                        : node.querySelectorAll('div.vehicle-car__section.vehicle-car-1');
-                    
-                    cards.forEach(card => {
-                        if (!card.classList.contains('processed-card') && 
-                            !card.classList.contains('coming-soon-card') &&
-                            !card.classList.contains('waiting-card')) {
-                            card.classList.add('waiting-card');
-                            card.setAttribute('data-processing-info', 'Waiting...');
-                        }
-                    });
-                }
-            });
-        });
-    });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
+    // Setup functions for checking images
     window.isComingSoonImageByOCR = async function(imageUrl) {
         try {
             const response = await chrome.runtime.sendMessage({
                 type: 'checkImageByOCR',
                 imageUrl: imageUrl
             });
-            
+
             if (response && response.success && response.result) {
                 return true;
             }
@@ -185,7 +188,7 @@ function callFindUrlsAndModels(testType) {
                 type: 'checkImageByOpenAI',
                 imageUrl: imageUrl
             });
-            
+
             if (response && response.success) {
                 return response.result;
             }
@@ -199,7 +202,7 @@ function callFindUrlsAndModels(testType) {
 
     window.isComingSoonImage = async function(imageUrl) {
         let selectedMethod = 'ocr';
-        
+
         try {
             const storageResult = await chrome.storage.local.get(['selectedImageCheckMethod']);
             selectedMethod = storageResult.selectedImageCheckMethod || 'ocr';
@@ -208,37 +211,26 @@ function callFindUrlsAndModels(testType) {
             console.warn('Could not get selected method from storage, defaulting to OCR:', error);
             selectedMethod = 'ocr';
         }
-        
+
         if (selectedMethod === 'ocr') {
-            console.log('Calling OCR image check for:', imageUrl);
             return await window.isComingSoonImageByOCR(imageUrl);
         } else if (selectedMethod === 'openai') {
-            console.log('Calling OpenAI image check for:', imageUrl);
             return await window.isComingSoonImageByChatGPT(imageUrl);
         }
         return false;
     };
-    
-    if (typeof addProcessingStyles === 'function') {
-        addProcessingStyles(globalStyleElement);
-    }
 
-    document.querySelectorAll('div.vehicle-car__section.vehicle-car-1').forEach(card => {
-        card.classList.remove('processed-card', 'coming-soon-card', 'processing-card');
-        card.classList.add('waiting-card');
-        card.setAttribute('data-processing-info', 'Waiting...');
-    });
-
+    // Process images
     async function findUrlsAndModels(testType) {
         try {
             scannedVehicles = await window.scrollDownUntilLoadAllVehicles(result, "", testType);
-            
+
             const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
             await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
 
-            const message = `Scanned ${scannedVehicles} vehicle${scannedVehicles !== 1 ? 's' : ''}.`;
-            console.log(message);
-            console.log(result);
+            console.log(`Scanned ${scannedVehicles} vehicle(s).`);
+            console.log('🚨 BEFORE EXPORT - Result array contains:', result.length, 'items');
+            console.log('🚨 BEFORE EXPORT - Result data:', result);
 
             chrome.runtime.sendMessage({
                 type: 'exportToCSV',
@@ -246,16 +238,7 @@ function callFindUrlsAndModels(testType) {
                 testType: testType,
                 siteName: window.location.hostname.replace('www.', '')
             });
-            
-            if (typeof addCleanupButton === 'function') {
-                addCleanupButton();
-            } else {
-                console.warn('addCleanupButton function not available');
-            }
         } finally {
-            if (observer) {
-                observer.disconnect();
-            }
             try {
                 await chrome.runtime.sendMessage({ type: 'stopProcessing' });
             } catch (error) {

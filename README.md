@@ -7,6 +7,7 @@ A powerful Chrome extension designed to enhance LeadBox functionality with tools
 - **Data Validation**: Match CSV data against SRP cards for inventory verification
 - **Link Extraction**: Extract and format links from sitemaps for spreadsheet use
 - **Admin Tools**: Enhanced printer functionality in the LeadBox admin panel
+- **Claude AI Integration**: AI-powered image analysis, data validation, field mapping, and debugging assistance
 
 ## Target Users
 - Vehicle dealers
@@ -88,6 +89,22 @@ Steps:
    - Type anything, click on save buttons
    - Type again, tap tab, it will autofill
 
+## Feature 008: Claude AI Integration
+AI-powered features using Anthropic's Claude API (optional, requires API key).
+
+### Setup
+1. Get API key from https://console.anthropic.com/
+2. Enter API key in extension popup (Claude Configuration section)
+3. Enable desired features
+
+### AI Features
+- **Enhanced Image Analysis**: Detect "coming soon" images using AI vision
+- **Smart Data Validation**: Intelligent CSV matching with natural language explanations
+- **Auto Field Mapping**: Automatically detect and map CSV column headers
+- **Debug Assistant**: Get AI-powered error analysis and troubleshooting steps
+
+See `/claude/README.md` for detailed documentation and usage examples.
+
 ## Feature007: IMS Internals Leads Edit Icon
 Automatically adds printer icons to leads list in the admin panel.
 
@@ -100,37 +117,73 @@ Working URLs:
 ## File Tree
 ```
 root/
-├── icons/
-│   ├── 16x16/                                      # 16x16 icons
-│   ├── 48x48/                                      # 48x48 icons
-│   └── 128x128/                                    # 128x128 icons
-├── image-checker/
-│   ├── ocr-image-checker.js                        # [SCRIPT] Space-OCR-API Integration
-│   └── openai-image-checker.js                     # [SCRIPT] OpenAI-API Integration
-├── $card-highlighter.js                            # [SHARED SCRIPT] Feature's vehicle cards highligher
-├── $csv-exporter.js                                # [SHARED SCRIPT] Feature's CSV exporter
-├── $data-handler.js                                # [SHARED SCRIPT] Feature's data handler
-├── $scrolling.js                                   # [SHARED SCRIPT] Feature's scroller
-├── background.js                                   # [BACKGROUND] Default extension file
-├── coming-soon-checker.js                          # [MAIN SCRIPT] Coming Soon Images checker
-├── intellisense-system.js                          # [MAIN SCRIPT] Intellisense system
-├── content-intellisense.js                         # [AUXILIAR SCRIPT] Intellisense detailer scripts
-├── csv-srp-data-matcher.js                         # [MAIN SCRIPT] CSV-SRP matcher
-├── field-map-storage.js                            # [SCRIPT] Field map helper
-├── lead-print-icon-injector.js                     # [MAIN SCRIPT] Leads printer icon script
-├── manifest.json                                   # [MANIFEST] Default extension file
-├── popup.html                                      # [POPUP] Default extension file
-├── popup.js                                        # [SCRIPT] Popup actions
-├── small-images-checker.js                         # [MAIN SCRIPT] Small Images checker
-├── ul-link-extractor.js                            # [MAIN SCRIPT] Links extractor from Unordered Lists <ul> component
-└── version.js                                      # [SCRIPT] Version handler
+├── background.js                                   # Service worker (icon spinner, OCR/OpenAI proxies)
+├── manifest.json                                   # Chrome extension manifest (v3)
+├── popup/
+│   ├── popup.html                                  # Popup UI markup
+│   ├── popup.css                                   # Popup styles
+│   └── popup.js                                    # Selector manager + feature launchpad
+├── core/                                           # Shared logic injected into SRP pages
+│   ├── $card-highlighter.js                        # Adds visual states to vehicle cards
+│   ├── $csv-exporter.js                            # Client-side CSV export helper
+│   ├── $data-handler.js                            # Loads selectors + orchestrates DOM parsing
+│   └── $scrolling.js                               # Auto-scroll & pagination helpers
+├── storage/                                        # Chrome storage helpers
+│   ├── vehicle-card-storage.js                     # Persist per-domain CSS selectors
+│   └── field-map-storage.js                        # Save/import arbitrary field mappings
+├── srp-csv/                                        # SRP validation utilities
+│   ├── csv-srp-data-matcher.js                     # CSV vs SRP comparison workflow
+│   └── small-images-checker.js                     # Detects undersized SRP images
+├── coming-soon/                                    # Coming-soon detection entrypoints
+│   ├── coming-soon-checker.js                      # Popup controller & page injector
+│   ├── ocr-image-checker.js                        # OCR.space API adapter
+│   └── openai-image-checker.js                     # OpenAI Vision adapter
+├── claude/                                         # Claude AI integration (NEW v3.8)
+│   ├── index.js                                    # Main entry point
+│   ├── claude-client.js                            # Core API client
+│   ├── claude-config.js                            # Configuration management
+│   ├── claude-image-analyzer.js                    # AI-powered image analysis
+│   ├── claude-data-validator.js                    # Intelligent data validation
+│   ├── claude-field-mapper.js                      # Smart field mapping
+│   ├── claude-debug-assistant.js                   # Debugging assistance
+│   └── README.md                                   # Claude integration docs
+├── commands/                                       # Claude Code CLI preprompts (NEW v3.8)
+│   ├── debug-extension.md                          # Debugging guide
+│   ├── add-feature.md                              # Feature addition guide
+│   ├── fix-bug.md                                  # Bug fixing guide
+│   ├── optimize-performance.md                     # Performance optimization
+│   ├── refactor-module.md                          # Code refactoring guide
+│   ├── test-feature.md                             # Testing guide
+│   ├── update-docs.md                              # Documentation guide
+│   └── README.md                                   # Commands usage
+├── ims-tools/                                      # IMS Admin helpers
+│   ├── lead-edit-icon-injector.js
+│   └── lead-print-icon-injector.js
+├── intellisense/
+│   ├── intellisense-system.js                      # Popup-side automation helpers
+│   └── content-intellisense.js                     # Content-script companion
+├── sitemap-tools/
+│   └── ul-link-extractor.js                        # Sitemap <ul> parser and exporter
+├── icons/                                          # Browser action icons
+│   ├── 16x16/
+│   ├── 48x48/
+│   └── 128x128/
+├── docs/                                           # Architecture documentation
+│   ├── UML.md
+│   └── SEQUENCE DIAGRAM.md
+├── constants/                                      # Misc constant tables
+├── associations/                                   # Domain-specific association data
+├── version.js                                      # Displays build/version info inside popup
+└── README.md
 ```
 
 # Requirements
 
 - Google Chrome browser (version 88 or higher)
 - OCR API key (only required for Feature001 when using OCR)
-- Access to LeadBox admin panel (for Feature004)
+- OpenAI API key (optional, for Feature001 OpenAI image checking)
+- Claude API key (optional, for Feature008 AI features)
+- Access to LeadBox admin panel (for Feature005 and Feature007)
 
 # Troubleshooting
 
@@ -169,6 +222,14 @@ root/
 
 ## Version History
 
+- v3.8: Claude AI Integration + Development Commands for Claude Code CLI
+  - Added Claude API integration for AI-powered features
+  - Enhanced image analysis with Claude Vision
+  - Intelligent data validation with natural language explanations
+  - Smart field mapping with auto-detection
+  - Debugging assistant with error analysis
+  - Created commands folder with preprompts for Claude Code CLI
+  - Added comprehensive documentation for all Claude features
 - V3.7: Global manual vehicle's card css selectors (vehicle card, stock, model, img, price, etc)
 - V3.6: Hotfix srpParser + logo spinner + debugmode option
 - v3.5: IMS-Internals-Leads-Edit-Icon

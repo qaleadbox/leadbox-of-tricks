@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LeadBox of Tricks",
-  "version": "3.7",
+  "version": "3.8",
   "description": "A toolbox designed to boost your productivity.",
   "permissions": [
     "scripting",
@@ -10,7 +10,8 @@
     "storage"
   ],
   "host_permissions": [
-    "https://my.leadboxhq.net/*"
+    "https://my.leadboxhq.net/*",
+    "https://api.anthropic.com/*"
   ],
   "action": {
     "default_popup": "/popup/popup.html",
@@ -27,8 +28,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "/coming-soon/openai-image-checker.js",
-        "config.js"
+        "/coming-soon/openai-image-checker.js"
       ],
       "matches": [
         "<all_urls>"
@@ -40,6 +40,17 @@
         "/core/$data-handler.js",
         "/storage/field-map-storage.js",
         "/core/$csv-exporter.js"
+      ],
+      "matches": ["<all_urls>"]
+    },
+    {
+      "resources": [
+        "/claude/claude-client.js",
+        "/claude/claude-config.js",
+        "/claude/claude-image-analyzer.js",
+        "/claude/claude-data-validator.js",
+        "/claude/claude-field-mapper.js",
+        "/claude/claude-debug-assistant.js"
       ],
       "matches": ["<all_urls>"]
     }

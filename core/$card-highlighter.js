@@ -12,6 +12,7 @@ window.highlightCard = async function (element, processingFunction, lastProcessi
 
     try {
         const result = await processingFunction();
+        console.log('🎯 highlightCard: processingFunction returned:', result, 'testType:', testType);
         clearInterval(timer);
 
         const endTime = performance.now();
@@ -22,6 +23,7 @@ window.highlightCard = async function (element, processingFunction, lastProcessi
         element.classList.add('processed-card');
 
         if (result === true) {
+            console.log('🔴 highlightCard: result is TRUE, adding special class for', testType);
             if (testType === 'COMING_SOON_DETECTOR') {
                 element.classList.add('coming-soon-card');
                 updateProcessingInfo(element, processingTime, lastProcessingTime, true, true, 'COMING_SOON_DETECTOR');
@@ -30,9 +32,11 @@ window.highlightCard = async function (element, processingFunction, lastProcessi
                 updateProcessingInfo(element, processingTime, lastProcessingTime, true, true, 'SMALL_IMAGE_DETECTOR');
             }
         } else {
+            console.log('⚪ highlightCard: result is FALSE, marking as processed only');
             updateProcessingInfo(element, processingTime, lastProcessingTime, true, false, testType);
         }
 
+        console.log('↩️ highlightCard: returning', result);
         return result;
     } catch (error) {
         clearInterval(timer);

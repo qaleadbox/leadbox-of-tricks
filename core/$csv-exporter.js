@@ -1,3 +1,4 @@
+//$csv-exporter.js
 export function exportToCSVFile(data, testType, siteName) {
     switch (testType){
         case "CSV_SRP_DATA_MATCHER": {
@@ -33,16 +34,20 @@ export function exportToCSVFile(data, testType, siteName) {
         }
         
         case "COMING_SOON_DETECTOR": {
+            console.log('📤 CSV EXPORTER received data:', data);
+            console.log('📤 CSV EXPORTER data length:', data ? data.length : 0);
+
             if (!data || data.length === 0) {
                 alert('No data to export!');
                 return;
             }
-    
+
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
             const filename = `${siteName}_${testType.toUpperCase()}_${timestamp}.csv`;
-    
+
             const headers = ['Model', 'Trim', 'Stock Number', 'Image URL'];
             const rows = data.map(item => [item.model, item.trim, item.stockNumber, item.imageUrl]);
+            console.log('📤 CSV EXPORTER creating', rows.length, 'rows');
     
             const csvContent = [
                 headers.join(','),

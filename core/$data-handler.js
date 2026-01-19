@@ -1,4 +1,4 @@
-﻿// data-handler.js
+// data-handler.js
 (async () => {
 	try {
 		const domain = window.location.hostname.replace(/^www\./, '');
@@ -174,6 +174,22 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 		case "CSV_SRP_DATA_MATCHER": {
 			startProcessingSpinner();
 
+			// Debug: Log the vehicle cards being processed
+			console.log(`🔍 DEBUG: Total vehicle cards to process: ${allVehicleCards.length}`);
+			console.log(`🔍 DEBUG: customFieldMap:`, window.customFieldMap);
+
+			if (allVehicleCards.length === 0) {
+				console.error(`❌ No vehicle cards found! Check your vehicle card selector.`);
+				stopProcessingSpinner();
+				return result;
+			}
+
+			if (!window.customFieldMap || !window.customFieldMap.STOCKNUMBER) {
+				console.error(`❌ customFieldMap.STOCKNUMBER is not set!`, window.customFieldMap);
+				stopProcessingSpinner();
+				return result;
+			}
+
 			let csvMap = {};
 			if (csvData) csvMap = await csvParser(csvData);
 			if (!result || Array.isArray(result)) result = {};
@@ -206,13 +222,31 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 
 			let processedVehicles = 0;
 			let vehiclesWithMismatches = 0;
+			const srpStocksMap = {};
+			const unmatchedStocks = [];
 
 			for (const srpVehicle of allVehicleCards) {
 				const stockSel = window.customFieldMap.STOCKNUMBER;
+				console.log(`🔍 DEBUG: Trying to get stock with selector: "${stockSel}"`);
+
+				// Test if the selector finds an element
+				const testEl = srpVehicle.querySelector(stockSel);
+				console.log(`🔍 DEBUG: Element found:`, testEl);
+				console.log(`🔍 DEBUG: Element text:`, testEl?.textContent);
+
 				let srpStockNumber = await getTextFromVehicleCard(srpVehicle, stockSel);
+				console.log(`🔍 DEBUG: Raw stock from getTextFromVehicleCard: "${srpStockNumber}"`);
 
 				srpStockNumber = srpStockNumber?.replace(/^0+/, '').trim().replace(/['"]+/g, '');
-				if (!srpStockNumber) continue;
+				console.log(`🔍 DEBUG: Stock after cleanup: "${srpStockNumber}"`);
+
+				if (!srpStockNumber) {
+					console.warn(`⚠️ DEBUG: Skipping vehicle - no stock number found`);
+					continue;
+				}
+
+				// Log all SRP stock values detected
+				console.log(`🔍 SRP Stock Detected: "${srpStockNumber}"`);
 
 				const csvVehicle = Object.entries(csvMap).find(([key]) =>
 					normalizeKey(key) === normalizeKey(srpStockNumber)
@@ -220,22 +254,56 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 
 				if (!csvVehicle) {
 					console.warn(`🚫 CSV vehicle not found for stock: ${srpStockNumber}`);
+					srpStocksMap[srpStockNumber] = { detected: true, matched: false, reason: 'Not in CSV' };
+					unmatchedStocks.push(srpStockNumber);
+
+					// Get all field values from SRP card even when not matched
+					const srpCardData = {};
+					for (const [field, selector] of Object.entries(window.customFieldMap)) {
+						if (!selector) continue;
+						const srpRaw = await getTextFromVehicleCard(srpVehicle, selector);
+						const srpTransformed = applyFieldTransform((srpRaw || '').toString().trim(), field, 'srp');
+						srpCardData[field] = normalizeValue(field, srpTransformed);
+					}
+					console.log(`📋 Unmatched Stock "${srpStockNumber}" SRP Data:`, srpCardData);
 					continue;
 				}
 
+				srpStocksMap[srpStockNumber] = { detected: true, matched: true };
 				processedVehicles++;
 				let hasMismatches = false;
 				const mismatches = {};
+				const matchedStockData = { csv: {}, srp: {} };
 
 				for (const [field, selector] of Object.entries(window.customFieldMap)) {
 					if (!selector || field.toUpperCase() === "STOCKNUMBER") continue;
+
+					// Check if validation is enabled for this field
+					const fieldUpper = field.toUpperCase();
+					const shouldValidate = window.validationEnabled?.[fieldUpper] !== false;
+
+					if (!shouldValidate) {
+						console.log(`⏭️  Skipping validation for field "${field}" (disabled by user)`);
+						continue;
+					}
 
 					const csvHeader = fieldToCsvMapping[field];
 					const csvRaw = csvHeader ? csvVehicle[csvHeader] : undefined;
 					const srpRaw = await getTextFromVehicleCard(srpVehicle, selector);
 
-					const csvNorm = normalizeValue(field, csvRaw);
-					const srpNorm = normalizeValue(field, srpRaw);
+					// Apply field-specific transformation (add/remove prefix/suffix) BEFORE normalization
+					const csvTransformed = applyFieldTransform((csvRaw || '').toString().trim(), field, 'csv');
+					const srpTransformed = applyFieldTransform((srpRaw || '').toString().trim(), field, 'srp');
+
+					// Apply normalization
+					const csvNorm = normalizeValue(field, csvTransformed);
+					const srpNorm = normalizeValue(field, srpTransformed);
+
+					console.log(`🔍 Field "${field}": CSV="${csvRaw}" → transformed:"${csvTransformed}" → normalized:"${csvNorm}", SRP="${srpRaw}" → transformed:"${srpTransformed}" → normalized:"${srpNorm}"`);
+
+					// Store all values for matched stock logging
+					matchedStockData.csv[field] = csvNorm;
+					matchedStockData.srp[field] = srpNorm;
 
 					if (await isExceptionValue(field, csvNorm, srpNorm)) continue;
 					if (srpNorm !== csvNorm) {
@@ -245,6 +313,9 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 					}
 				}
 
+				// Log all data for matched stock
+				console.log(`✅ Matched Stock "${srpStockNumber}" Full Data:`, matchedStockData);
+
 				if (hasMismatches) {
 					vehiclesWithMismatches++;
 					if (!result[srpStockNumber]) result[srpStockNumber] = { mismatches };
@@ -252,6 +323,17 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 				}
 			}
 
+			const matchedStocks = Object.keys(srpStocksMap).filter(s => srpStocksMap[s].matched);
+			const totalDetected = Object.keys(srpStocksMap).length;
+
+			console.log("🚗 ALL DETECTED SRP STOCKS:", srpStocksMap);
+			console.log(`📊 STOCK SUMMARY:
+  Total SRP Stocks Detected: ${totalDetected}
+  Matched in CSV: ${matchedStocks.length}
+  Not Matched in CSV: ${unmatchedStocks.length}
+  Vehicles with Mismatches: ${vehiclesWithMismatches}`);
+			console.log("✅ Matched Stocks:", matchedStocks);
+			console.log("❌ Unmatched Stocks:", unmatchedStocks);
 			console.log(`✅ CSV matcher done: ${processedVehicles} processed, ${vehiclesWithMismatches} mismatched.`);
 			stopProcessingSpinner();
 			return result;
@@ -349,40 +431,46 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 
 				const isComingSoonOrBetter = await highlightCard(element, async () => {
 					if (window._ocrCache[imageUrl] !== undefined) {
+						console.log('📦 Using cached result for', imageUrl, '→', window._ocrCache[imageUrl]);
 						return window._ocrCache[imageUrl];
 					}
 
 					const betterPhoto = window.isBetterPhotoImage(imageUrl);
 					if (betterPhoto) {
+						console.log('📸 BetterPhoto detected:', imageUrl);
 						window._ocrCache[imageUrl] = true;
 						return true;
 					}
 
 					const ocrResult = await window.isComingSoonImage(imageUrl);
+					console.log('🔍 API returned for', imageUrl, '→', ocrResult);
 					window._ocrCache[imageUrl] = ocrResult;
 					return ocrResult;
-				});
+				}, 0, null, 'COMING_SOON_DETECTOR');
 
-				const elapsed = (performance.now() - start) / 1000;
-				if (typeof updateProcessingInfo === 'function') {
-					updateProcessingInfo(element, elapsed, 0, true, !!isComingSoonOrBetter, 'COMING_SOON_DETECTOR');
-				}
+				console.log('💡 highlightCard returned:', isComingSoonOrBetter, 'for stock:', stockNumber);
 
 				if (isComingSoonOrBetter && !exists) {
-					element.classList.add('coming-soon-card');
 					result.push({ model, trim, stockNumber, imageUrl });
-					console.log(`✅ Coming Soon / BetterPhoto ${stockNumber} (${model}) - Total: ${result.length}`);
+					console.log(`✅ ADDED TO RESULTS: Coming Soon - ${stockNumber} (${model}) - Total: ${result.length}`);
+				} else if (!isComingSoonOrBetter) {
+					console.log(`❌ NOT coming soon - ${stockNumber} (${model}) - SKIPPING`);
+				} else if (exists) {
+					console.log(`⏭️  Already in results - ${stockNumber}`);
 				}
 			}
+
+			console.log('📊 FINAL RESULTS SUMMARY:', result.length, 'coming soon images detected');
+			console.log('📋 Results array:', result);
 			break;
 		}
 	}
 	return result;
 };
 
-function isBetterPhotoImage(imageUrl) {
+window.isBetterPhotoImage = function(imageUrl) {
 	return imageUrl.includes('better-photo.jpg');
-}
+};
 
 // ===== CSV UTILS =====
 async function csvParser(csvText) {
@@ -483,12 +571,54 @@ async function isExceptionValue(k, cv, sv) {
 	return exc.some(e => e.srp.includes(sv) && (e.csv.includes(cv) || e.csv.includes(any)));
 }
 
+function applyFieldTransform(value, field, target) {
+	if (!window.fieldTransforms || typeof window.fieldTransforms !== 'object') {
+		return value;
+	}
+
+	const fieldUpper = field.toUpperCase();
+	const transform = window.fieldTransforms[fieldUpper];
+
+	if (!transform || !transform.value) {
+		return value;
+	}
+
+	// Check if transform applies to this target (srp, csv, or both)
+	if (transform.target !== 'both' && transform.target !== target) {
+		return value;
+	}
+
+	let result = value;
+
+	// Apply transformation based on action (remove or add) and type (prefix or suffix)
+	if (transform.action === 'remove') {
+		if (transform.type === 'suffix' && result.endsWith(transform.value)) {
+			result = result.slice(0, -transform.value.length);
+			console.log(`🔄 Removed suffix "${transform.value}" from ${target.toUpperCase()} ${field}: "${value}" → "${result}"`);
+		} else if (transform.type === 'prefix' && result.startsWith(transform.value)) {
+			result = result.slice(transform.value.length);
+			console.log(`🔄 Removed prefix "${transform.value}" from ${target.toUpperCase()} ${field}: "${value}" → "${result}"`);
+		}
+	} else if (transform.action === 'add') {
+		if (transform.type === 'suffix' && !result.endsWith(transform.value)) {
+			result = result + transform.value;
+			console.log(`🔄 Added suffix "${transform.value}" to ${target.toUpperCase()} ${field}: "${value}" → "${result}"`);
+		} else if (transform.type === 'prefix' && !result.startsWith(transform.value)) {
+			result = transform.value + result;
+			console.log(`🔄 Added prefix "${transform.value}" to ${target.toUpperCase()} ${field}: "${value}" → "${result}"`);
+		}
+	}
+
+	return result;
+}
+
 async function getTextFromVehicleCard(vehicleCard, selector) {
 	if (!vehicleCard) return "";
 	const el = vehicleCard.querySelector(selector);
 	if (!el) return "";
 	if (el.tagName === "IMG") return el.src || el.dataset.src || "";
-	return el.textContent.trim().replace("Stock#:", "").trim();
+	// Remove various stock prefixes: "Stock#:", "Stock #:", "Stock:", "#", etc.
+	return el.textContent.trim().replace(/^(Stock\s*#?\s*:?\s*|#)/i, "").trim();
 }
 
 window.extractCSVHeaders = function (csvData) {

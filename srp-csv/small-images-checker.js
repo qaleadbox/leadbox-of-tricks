@@ -1,7 +1,9 @@
-﻿// $small-images-checker.js
+// small-images-checker.js
+
+// Toggle expansion of small image settings div
 document.getElementById('check small images').addEventListener('click', async (event) => {
     const smallImageSettingsDiv = document.getElementById('smallImageSettingsDiv');
-    
+
     if (smallImageSettingsDiv.style.display === 'none') {
         smallImageSettingsDiv.style.display = 'block';
         return;
@@ -18,16 +20,16 @@ document.getElementById('startSmallImageScanning').addEventListener('click', asy
 async function loadSiteThreshold() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const siteName = tab.url ? new URL(tab.url).hostname.replace('www.', '') : '';
-    
+
     const result = await chrome.storage.local.get(['siteImageThresholds']);
     const siteThresholds = result.siteImageThresholds || {};
-    
+
     if (siteThresholds[siteName]) {
         document.getElementById('imageSizeThreshold').value = siteThresholds[siteName];
     } else {
         document.getElementById('imageSizeThreshold').value = 10;
     }
-    
+
     const siteLabel = document.getElementById('siteLabel');
     if (siteLabel) {
         siteLabel.textContent = `Image Size Threshold for ${siteName}:`;
@@ -38,20 +40,22 @@ document.getElementById('imageSizeThreshold').addEventListener('change', async (
     const threshold = parseInt(event.target.value) || 10;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const siteName = tab.url ? new URL(tab.url).hostname.replace('www.', '') : '';
-    
+
     const result = await chrome.storage.local.get(['siteImageThresholds']);
     const siteThresholds = result.siteImageThresholds || {};
     siteThresholds[siteName] = threshold;
-    
+
     await chrome.storage.local.set({ siteImageThresholds: siteThresholds });
     console.log(`Saved threshold ${threshold}KB for site: ${siteName}`);
 });
 
 loadSiteThreshold();
 
+const testType = 'SMALL_IMAGE_DETECTOR';
+
 async function startSmallImageScanning() {
     chrome.runtime.sendMessage({ type: 'startProcessing' });
-    
+
     chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
         if (!tab) {
             console.error('No active tab found');
@@ -80,11 +84,25 @@ async function startSmallImageScanning() {
 
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
-                files: ['./core/$card-highlighter.js', './core/$scrolling.js', './core/$data-handler.js']
+                files: ['/core/$card-highlighter.js', '/core/$scrolling.js', '/core/$data-handler.js']
+            });
+
+            // Load manual selectors into window before running
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: async () => {
+                    const domain = location.hostname.replace(/^www\./, '');
+                    const stored = await chrome.storage.local.get('manualVehicleSelectors');
+                    const all = stored.manualVehicleSelectors || {};
+                    const selectors = all[domain] || all.global || {};
+                    if (!window.manualVehicleSelectors) window.manualVehicleSelectors = {};
+                    window.manualVehicleSelectors[domain] = selectors;
+                    console.log('Loaded selectors for domain:', domain, selectors);
+                }
             });
 
             const threshold = parseInt(document.getElementById('imageSizeThreshold').value) || 10;
-            
+
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: callFindSmallImages,
@@ -98,8 +116,6 @@ async function startSmallImageScanning() {
     });
 }
 
-const testType = 'SMALL_IMAGE_DETECTOR';
-
 function callFindSmallImages(testType, threshold = 10) {
     let scannedVehicles = 0;
     let result = [];
@@ -108,10 +124,10 @@ function callFindSmallImages(testType, threshold = 10) {
     let isProcessing = true;
 
     window.isSmallImageByUrl = function(imageUrl) {
-        if (!imageUrl.toLowerCase().includes('.jpg')) {
-            return { isSmall: false, fileSizeKB: 0 };
+        if (!imageUrl || typeof imageUrl !== 'string') {
+            return Promise.resolve({ isSmall: false, fileSizeKB: 0 });
         }
-        
+
         return new Promise((resolve) => {
             fetch(imageUrl, { method: 'HEAD' })
                 .then(response => {
@@ -125,6 +141,7 @@ function callFindSmallImages(testType, threshold = 10) {
                     }
                 })
                 .catch(error => {
+                    console.warn('Failed to check image size:', imageUrl, error);
                     resolve({ isSmall: false, fileSizeKB: 0 });
                 });
         });
@@ -149,17 +166,17 @@ function callFindSmallImages(testType, threshold = 10) {
     // PENDING TO MERGED TO $card-highlighter.js
     async function highlightCard(element) {
         const currentTime = Date.now();
-        
+
         try {
             const imageUrl = element.querySelector('img')?.src || '';
             const { isSmall, fileSizeKB } = await window.isSmallImageByUrl(imageUrl);
-            
+
             if (isSmall) {
                 element.classList.add('small-image-card');
-                
+
                 const stockNumberElement = element.querySelector('.stock_label') || element.querySelector('.stock_number') || element.querySelector('.value__stock');
                 const modelElement = element.querySelector('.value__model');
-                
+
                 let stockNumber = '';
                 if (stockNumberElement) {
                     if (stockNumberElement.classList.contains('stock_label')) {
@@ -169,9 +186,9 @@ function callFindSmallImages(testType, threshold = 10) {
                         stockNumber = stockNumberElement.textContent.trim();
                     }
                 }
-                
+
                 const model = modelElement ? modelElement.textContent.trim() : '';
-                
+
                 result.push({
                     stockNumber: stockNumber,
                     model: model,
@@ -179,11 +196,11 @@ function callFindSmallImages(testType, threshold = 10) {
                     timestamp: new Date().toISOString()
                 });
             }
-            
+
             element.classList.remove('processing-card', 'waiting-card');
             element.classList.add('processed-card');
             updateProcessingInfo(element, currentTime, lastProcessingTime, isProcessing, isSmall, testType);
-            
+
             scannedVehicles++;
             lastProcessingTime = currentTime;
         } catch (error) {
@@ -207,7 +224,7 @@ function callFindSmallImages(testType, threshold = 10) {
     async function findSmallImages(testType) {
         try {
             scannedVehicles = await window.scrollDownUntilLoadAllVehicles(result, "", testType);
-            
+
             const allVehicleCards = document.querySelectorAll('.vehicle-car__section');
             await window.$dataHandler(allVehicleCards, null, result, testType, window.highlightCard);
 
@@ -221,7 +238,7 @@ function callFindSmallImages(testType, threshold = 10) {
                 testType: testType,
                 siteName: window.location.hostname.replace('www.', '')
             });
-            
+
             addCleanupButton();
         } finally {
             try {
@@ -234,4 +251,4 @@ function callFindSmallImages(testType, threshold = 10) {
     }
 
     findSmallImages(testType);
-} 
+}
