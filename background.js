@@ -98,6 +98,79 @@ Promise.resolve().then(() => {
                         });
                     return true;
 
+                case 'exportToCSV':
+                    console.log('📤 Background received exportToCSV request:', {
+                        testType: message.testType,
+                        dataLength: message.data?.length,
+                        siteName: message.siteName
+                    });
+
+                    // Execute CSV export in the active tab (can't use import in service worker)
+                    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                        if (tabs[0]) {
+                            chrome.scripting.executeScript({
+                                target: { tabId: tabs[0].id },
+                                func: (data, testType, siteName) => {
+                                    // Inline CSV export function
+                                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
+                                    const filename = `${siteName}_VEHICLE_DATA_${timestamp}`;
+
+                                    // Collect all unique field names
+                                    const allFields = new Set();
+                                    data.forEach(vehicle => {
+                                        Object.keys(vehicle).forEach(field => allFields.add(field));
+                                    });
+
+                                    // Sort headers (stockNumber first, then alphabetically)
+                                    const headers = Array.from(allFields).sort((a, b) => {
+                                        if (a === 'stockNumber') return -1;
+                                        if (b === 'stockNumber') return 1;
+                                        if (a === 'model') return -1;
+                                        if (b === 'model') return 1;
+                                        if (a === 'trim') return -1;
+                                        if (b === 'trim') return 1;
+                                        return a.localeCompare(b);
+                                    });
+
+                                    // Create rows
+                                    const rows = data.map(vehicle => {
+                                        return headers.map(header => {
+                                            const value = vehicle[header] || '';
+                                            return `"${String(value).replace(/"/g, '""')}"`;
+                                        });
+                                    });
+
+                                    const csvContent = [
+                                        headers.map(h => `"${h}"`).join(','),
+                                        ...rows.map(row => row.join(','))
+                                    ].join('\n');
+
+                                    // Create and download
+                                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                    const link = document.createElement('a');
+                                    const url = URL.createObjectURL(blob);
+
+                                    link.href = url;
+                                    link.download = `${filename}.csv`;
+                                    link.style.display = 'none';
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(url);
+
+                                    console.log(`✅ CSV downloaded: ${filename}.csv with ${data.length} vehicles`);
+                                },
+                                args: [message.data, message.testType, message.siteName]
+                            }).then(() => {
+                                sendResponse({ success: true });
+                            }).catch(error => {
+                                console.error('Error exporting CSV:', error);
+                                sendResponse({ success: false, error: error.message });
+                            });
+                        }
+                    });
+                    return true;
+
                 default:
                     console.warn('Unknown message type:', message.type);
                     sendResponse({ success: false, error: 'Unknown message type' });

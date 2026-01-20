@@ -41,6 +41,16 @@
           <div class="feature-title">CSV Data Matcher</div>
           <div class="feature-description">Match CSV data with SRP cards information.</div>
         </li>
+        <li>
+          <div class="feature-title">Vehicle Data Exporter</div>
+          <div class="feature-description">Export all vehicle data from the current page to CSV format.</div>
+          <ul>
+            <li>Reverse feature of CSV Data Matcher</li>
+            <li>Scrolls through page to load all vehicles</li>
+            <li>Extracts all configured fields</li>
+            <li>Exports to CSV file for comparison with other sites</li>
+          </ul>
+        </li>
       </ul>
     </div>
 
@@ -169,6 +179,36 @@ Steps:
     </div>
   </div>
   <script type="module" src="../srp-csv/csv-srp-data-matcher.js"></script>
+
+  <button id="export vehicle data to csv">Export Vehicle Data to CSV <span class="availability-text">(AVAILABLE ON SRPs)</span></button>
+  <div id="exportVehicleDataSection" style="display: none;">
+    <div style="background-color: #4CAF50; color: white; padding: 10px; border-radius: 4px; margin-bottom: 12px; border-left: 4px solid #45a049;">
+      <div style="display: flex; align-items: flex-start; gap: 8px;">
+        <div style="flex: 1;">
+          <div style="font-weight: bold; margin-bottom: 4px; font-size: 13px;">REVERSE FEATURE</div>
+          <div style="font-size: 11px; line-height: 1.4;">
+            This is the reverse of the CSV validation feature. Instead of importing CSV and validating against the website, this exports website data to CSV.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size: 12px; color: #ccc; line-height: 1.4; margin-bottom: 12px;">
+      <strong>Export vehicle data from this page to CSV.</strong><br>
+      Select which fields you want to export. Stock Number is mandatory and always included.<br>
+      <br>
+      <strong>Use Case:</strong> Export data from Site A, then use the CSV to compare with Site B using the validation feature above.
+    </div>
+
+    <div class="export-field-mappings">
+      <h3>Fields to Export</h3>
+      <div id="exportFieldsContainer"></div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+      <button id="startVehicleDataExport" class="action-button">Start Export</button>
+    </div>
+  </div>
+  <script type="module" src="../export-vehicle-data/vehicle-data-exporter.js"></script>
 
   <button id="Copy Unordered List Links">Copy Unordered List Links <span class="availability-text">(AVAILABLE ON SITEMAPs)</span></button>
   <div class="modal-overlay" id="modalOverlay"></div>

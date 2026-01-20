@@ -1,4 +1,6 @@
 // data-handler.js
+console.log('🔥 $data-handler.js loaded - VERSION 2.0 - WITH EXPORT LOGGING');
+
 (async () => {
 	try {
 		const domain = window.location.hostname.replace(/^www\./, '');
@@ -169,6 +171,9 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 			card.setAttribute('data-processing-info', 'Waiting...');
 		}
 	});
+
+	console.log('💡 $dataHandler called with testType:', testType, 'cards count:', allVehicleCards?.length);
+	console.log('💡 Result is array?', Array.isArray(result), 'length:', result?.length);
 
 	switch (testType) {
 		case "CSV_SRP_DATA_MATCHER": {
@@ -464,7 +469,189 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 			console.log('📋 Results array:', result);
 			break;
 		}
+
+		case 'VEHICLE_DATA_EXPORTER': {
+			console.log('🚀🚀🚀 VEHICLE_DATA_EXPORTER CASE ENTERED 🚀🚀🚀');
+			console.log('🚀 Result array initial state:', Array.isArray(result), 'length:', result?.length);
+
+			if (!Array.isArray(result)) {
+				console.log('🚀 Converting result to array');
+				result = [];
+			}
+
+			console.log('🚀 Starting to process', allVehicleCards?.length, 'cards');
+
+			const vehicleSelector = await getVehicleCardSelector();
+			console.log('📋 Vehicle selector:', vehicleSelector);
+
+			if (!vehicleSelector) {
+				console.error('❌ No vehicle card selector configured');
+				alert('⚠️ Please configure vehicle card selectors first!');
+				return result;
+			}
+
+			// Get selected fields to export
+			const selectedFields = window.exportSelectedFields || [];
+			console.log('📋 Selected fields for export:', selectedFields);
+
+			// Use the cards passed as parameter (allVehicleCards), not query again
+			const cards = allVehicleCards;
+			console.log(`📋 Processing ${cards.length} vehicle cards for export`);
+			console.log('📋 Cards type:', typeof cards);
+			console.log('📋 Is array:', Array.isArray(cards));
+			console.log('📋 Is NodeList:', cards instanceof NodeList);
+
+			// Debug: show first card if available
+			if (cards && cards.length > 0) {
+				console.log('📋 First card HTML preview:', cards[0].outerHTML.substring(0, 200));
+			} else {
+				console.error('❌ No cards to process!');
+				return result;
+			}
+
+			const detectedStockNumbers = [];
+			const skippedReasons = [];
+
+			let cardIndex = 0;
+			for (const element of cards) {
+				cardIndex++;
+
+				// CARD 1 DEBUG - Show what selectors we have
+				if (cardIndex === 1) {
+					console.log('\n🎯 CARD 1: window.exportSelectedFields =', window.exportSelectedFields);
+					console.log('🎯 CARD 1: window.manualVehicleSelectors =', window.manualVehicleSelectors);
+
+					// Get domain and selectors the same way the code below will
+					const testDomain = window.location.hostname.replace(/^www\./, '');
+					const testStored = (await chrome.storage.local.get('manualVehicleSelectors')).manualVehicleSelectors || {};
+					const testStoredSelectors = testStored[testDomain] || testStored.global || {};
+					const testWindowSelectors = window.manualVehicleSelectors?.[testDomain] || {};
+					const testMerged = { ...testStoredSelectors, ...testWindowSelectors };
+
+					console.log('🎯 CARD 1 domain:', testDomain);
+					console.log('🎯 CARD 1 testStoredSelectors:', testStoredSelectors);
+					console.log('🎯 CARD 1 testWindowSelectors:', testWindowSelectors);
+					console.log('🎯 CARD 1 testMerged:', testMerged);
+
+					// Now test if we can find PRICE with the selector in testMerged
+					if (testMerged.PRICE) {
+						const priceSelector = testMerged.PRICE;
+						console.log(`🎯 CARD 1: Testing PRICE with selector "${priceSelector}"`);
+						const priceElement = element.querySelector(priceSelector);
+						console.log(`🎯 CARD 1: PRICE element found?`, !!priceElement);
+						if (priceElement) {
+							console.log(`🎯 CARD 1: PRICE text = "${priceElement.textContent.trim()}"`);
+						}
+					} else {
+						console.log('🎯 CARD 1: NO PRICE SELECTOR IN MERGED!');
+					}
+				}
+
+				console.log(`\n🔍 === Processing card ${cardIndex}/${cards.length} ===`);
+				try {
+					// Extract all fields from the vehicle card
+					const vehicleData = await extractFields(element);
+
+					// Skip if missing critical data
+					if (!vehicleData.stockNumber) {
+						console.warn(`⚠️ Card ${cardIndex} - Skipping: no stock number found`);
+						skippedReasons.push(`Card ${cardIndex}: No stock number`);
+						continue;
+					}
+
+					console.log(`✅ Card ${cardIndex} - Stock number detected: "${vehicleData.stockNumber}"`);
+					detectedStockNumbers.push(vehicleData.stockNumber);
+
+					// Check if already added (avoid duplicates)
+					const exists = result.some(v => v.stockNumber === vehicleData.stockNumber);
+					if (exists) {
+						console.log(`⏭️  Already exported: ${vehicleData.stockNumber}`);
+						continue;
+					}
+
+					// Extract all configured fields from the vehicle card
+					const domain = window.location.hostname.replace(/^www\./, '');
+					const stored = (await chrome.storage.local.get('manualVehicleSelectors')).manualVehicleSelectors || {};
+					const storedSelectors = stored[domain] || stored.global || {};
+					const windowSelectors = window.manualVehicleSelectors?.[domain] || {};
+
+					// CRITICAL: Merge both sources - storage AND window (which has custom fields)
+					const selectors = { ...storedSelectors, ...windowSelectors };
+
+					console.log('🔍 Stored selectors:', storedSelectors);
+					console.log('🔍 Window selectors:', windowSelectors);
+					console.log('🔍 Merged selectors:', selectors);
+
+					const fullVehicleData = { ...vehicleData };
+
+					// Extract additional fields - use getTextFromVehicleCard like CSV matcher does!
+					console.log(`🔍 Card ${cardIndex} - Extracting additional fields from selectors:`, selectors);
+					for (const [fieldName, selector] of Object.entries(selectors)) {
+						if (fieldName === 'vehicleCard') continue; // Skip card selector itself
+						if (fullVehicleData[fieldName]) {
+							console.log(`🔍 Card ${cardIndex} - Field ${fieldName} already extracted:`, fullVehicleData[fieldName]);
+							continue; // Skip if already extracted
+						}
+
+						console.log(`🔍 Card ${cardIndex} - Extracting ${fieldName} with selector: "${selector}"`);
+
+						// Use the same method as CSV matcher
+						const value = await getTextFromVehicleCard(element, selector);
+						fullVehicleData[fieldName] = value || '';
+
+						if (value) {
+							console.log(`✅ Card ${cardIndex} - Extracted ${fieldName}: "${value}"`);
+						} else {
+							console.log(`⚠️ Card ${cardIndex} - No value found for ${fieldName} with selector: "${selector}"`);
+						}
+					}
+
+					console.log('🔍 Full vehicle data before filtering:', fullVehicleData);
+
+					console.log(`🔍 Card ${cardIndex} - Full vehicle data after extraction:`, fullVehicleData);
+					console.log(`🔍 Card ${cardIndex} - Selected fields to filter:`, selectedFields);
+
+					// Filter to only include selected fields
+					const filteredVehicleData = {};
+					if (selectedFields.length > 0) {
+						selectedFields.forEach(fieldName => {
+							const value = fullVehicleData[fieldName];
+							filteredVehicleData[fieldName] = value !== undefined ? value : '';
+							console.log(`🔍 Card ${cardIndex} - Filtering ${fieldName}: "${fullVehicleData[fieldName]}" -> "${filteredVehicleData[fieldName]}"`);
+						});
+					} else {
+						// If no fields selected, export all
+						console.log('⚠️ No fields selected, exporting all');
+						Object.assign(filteredVehicleData, fullVehicleData);
+					}
+
+					console.log(`🔍 Card ${cardIndex} - Final filtered vehicle data:`, filteredVehicleData);
+
+					result.push(filteredVehicleData);
+					console.log(`✅✅✅ PUSHED TO RESULT! Total now: ${result.length}`, filteredVehicleData);
+
+				} catch (error) {
+					console.error('💥 Error extracting vehicle data:', error, element);
+				}
+			}
+
+			console.log('\n📊 ========== EXPORT SUMMARY ==========');
+			console.log(`📊 Total cards processed: ${cards.length}`);
+			console.log(`📊 Stock numbers detected: ${detectedStockNumbers.length}`);
+			console.log(`📊 Vehicles exported: ${result.length}`);
+			console.log(`📊 Vehicles skipped: ${skippedReasons.length}`);
+			console.log('\n📋 Detected stock numbers:', detectedStockNumbers);
+			if (skippedReasons.length > 0) {
+				console.log('\n⚠️ Skipped reasons:', skippedReasons);
+			}
+			console.log('📊 ====================================\n');
+			console.log(`✅ VEHICLE_DATA_EXPORTER completed: ${result.length} vehicles exported`);
+			console.log('🚀🚀🚀 RETURNING RESULT WITH LENGTH:', result.length);
+			break;
+		}
 	}
+
+	console.log('💡 $dataHandler RETURNING result with length:', result?.length);
 	return result;
 };
 
@@ -473,6 +660,41 @@ window.isBetterPhotoImage = function(imageUrl) {
 };
 
 // ===== CSV UTILS =====
+
+// Properly parse CSV line respecting quoted fields
+function parseCSVLine(line, delimiter = ',') {
+    const fields = [];
+    let field = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                // Escaped quote
+                field += '"';
+                i++; // Skip next quote
+            } else {
+                // Toggle quote state
+                inQuotes = !inQuotes;
+            }
+        } else if (char === delimiter && !inQuotes) {
+            // End of field
+            fields.push(field);
+            field = '';
+        } else {
+            field += char;
+        }
+    }
+
+    // Add last field
+    fields.push(field);
+
+    return fields;
+}
+
 async function csvParser(csvText) {
     if (!csvText || typeof csvText !== "string") return {};
 
@@ -495,7 +717,7 @@ async function csvParser(csvText) {
             .replace(/^'+|'+$/g, "")
             .trim();
 
-    const rawHeaders = headerLine.split(delimiter);
+    const rawHeaders = parseCSVLine(headerLine, delimiter);
     const headers = rawHeaders.map(h => clean(h));
 
     const uniqueHeaders = [];
@@ -508,7 +730,7 @@ async function csvParser(csvText) {
     const map = {};
 
     for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(delimiter);
+        const cols = parseCSVLine(lines[i], delimiter);
         const entry = {};
 
         uniqueHeaders.forEach((h, idx) => {
@@ -631,7 +853,7 @@ window.extractCSVHeaders = function (csvData) {
 	const headerLine = lines[0];
 	const detected = delimiters.find(d => headerLine.includes(d)) || ',';
 
-	const headers = headerLine.split(detected).map(h => h.trim().replace(/^"|"$/g, ''));
+	const headers = parseCSVLine(headerLine, detected).map(h => h.trim().replace(/^"|"$/g, ''));
 
 	console.log(`🧩 Detected delimiter: '${detected}' → Headers:`, headers);
 	return headers;
