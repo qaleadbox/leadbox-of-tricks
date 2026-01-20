@@ -236,7 +236,8 @@ function callFindSmallImages(testType, threshold = 10) {
                 type: 'exportToCSV',
                 data: result,
                 testType: testType,
-                siteName: window.location.hostname.replace('www.', '')
+                siteName: window.location.hostname.replace('www.', ''),
+                primaryKeyField: window.primaryKeyField || 'stockNumber'
             });
 
             addCleanupButton();

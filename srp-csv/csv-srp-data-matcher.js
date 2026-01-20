@@ -45,14 +45,15 @@ export async function getCurrentFieldMap() {
     const customFieldMap = {};
     const inputs = document.querySelectorAll('input[id$="Mapping"]');
 
-    const norm = s => (s || '').toLowerCase().replace(/[\s_#"'']+/g, '').trim();
-    const looksLikeStock = name => {
-      const n = norm(name);
-      return n === 'stocknumber' || n === 'stock' || n === 'stk' || n === 'stockno' || n === 'stock#';
-    };
+    // Get primary key field
+    const primaryKeyField = await loadPrimaryKeyField();
+    const primaryKeyUpper = primaryKeyField.toUpperCase();
+
+    console.log('🔍 getCurrentFieldMap - primaryKeyField:', primaryKeyField);
+    console.log('🔍 getCurrentFieldMap - primaryKeyUpper:', primaryKeyUpper);
 
     if (inputs.length > 0) {
-      let stockSelectorFromInputs = '';
+      let primaryKeySelectorFromInputs = '';
 
       inputs.forEach(input => {
         const originalFieldName = input.id.replace('Mapping', '');
@@ -62,28 +63,34 @@ export async function getCurrentFieldMap() {
         if (!selectorVal) return;
 
         customFieldMap[fieldNameUpper] = selectorVal;
+        console.log(`🔍 Mapped field: ${fieldNameUpper} = ${selectorVal}`);
 
-        if (input.dataset && input.dataset.isStockField === 'true') {
-          stockSelectorFromInputs = selectorVal;
+        if (input.dataset && input.dataset.isPrimaryKeyField === 'true') {
+          primaryKeySelectorFromInputs = selectorVal;
+          console.log('🔑 Found primary key selector:', selectorVal);
         }
       });
 
-      if (!customFieldMap.STOCKNUMBER && stockSelectorFromInputs) {
-        customFieldMap.STOCKNUMBER = stockSelectorFromInputs;
+      console.log('🔍 Full customFieldMap:', customFieldMap);
+      console.log('🔍 Looking for key:', primaryKeyUpper);
+      console.log('🔍 Key exists in map?', customFieldMap[primaryKeyUpper]);
+
+      // Ensure primary key field is mapped
+      if (!customFieldMap[primaryKeyUpper] && primaryKeySelectorFromInputs) {
+        customFieldMap[primaryKeyUpper] = primaryKeySelectorFromInputs;
+        console.log('🔑 Assigned primary key selector from input');
       }
 
-      if (!customFieldMap.STOCKNUMBER) {
-        const maybe = Object.keys(customFieldMap).find(k => looksLikeStock(k));
-        if (maybe) customFieldMap.STOCKNUMBER = customFieldMap[maybe];
-      }
-
-      if (!customFieldMap.STOCKNUMBER) {
+      if (!customFieldMap[primaryKeyUpper]) {
+        console.error('❌ PRIMARY KEY FIELD NOT FOUND!');
+        console.error('❌ Looking for:', primaryKeyUpper);
+        console.error('❌ Available fields:', Object.keys(customFieldMap));
         const msg = document.getElementById('csvFieldMapMessage');
         if (msg) {
-          msg.textContent = 'Please set the selector for a stock field (e.g., Stock, Stock #, STK).';
+          msg.textContent = `Please set the selector for the primary key field: ${primaryKeyField}`;
           msg.style.color = '#c22';
         } else {
-          alert('Please set the Stock field selector (Stock, Stock #, STK, or StockNumber).');
+          alert(`Please set the ${primaryKeyField} field selector.`);
         }
         return null;
       }
@@ -95,18 +102,13 @@ export async function getCurrentFieldMap() {
     if (savedFieldMap && typeof savedFieldMap === 'object') {
       Object.assign(customFieldMap, savedFieldMap);
 
-      if (!customFieldMap.STOCKNUMBER) {
-        const maybe = Object.keys(customFieldMap).find(k => looksLikeStock(k));
-        if (maybe) customFieldMap.STOCKNUMBER = customFieldMap[maybe];
-      }
-
-      if (!customFieldMap.STOCKNUMBER) {
+      if (!customFieldMap[primaryKeyUpper]) {
         const msg = document.getElementById('csvFieldMapMessage');
         if (msg) {
-          msg.textContent = 'Please set the Stock selector in the mappings.';
+          msg.textContent = `Please set the ${primaryKeyField} selector in the mappings.`;
           msg.style.color = '#c22';
         } else {
-          alert('Please set the Stock selector in the mappings.');
+          alert(`Please set the ${primaryKeyField} selector in the mappings.`);
         }
         return null;
       }
@@ -171,6 +173,10 @@ export async function callFindUrlsAndModels() {
 
         await initializeDataHandler();
 
+        // Load primary key field
+        const primaryKeyField = await loadPrimaryKeyField();
+        console.log('🔑 Primary key field:', primaryKeyField);
+
         const results = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: (data) => {
@@ -193,8 +199,15 @@ export async function callFindUrlsAndModels() {
             fieldMappingsContainer.innerHTML = '<h3>Vehicle Card Class Names</h3>';
 
             headers.forEach(header => {
+                const normalizedHeader = header.toLowerCase().replace(/[\s_#"'']+/g, '');
+                const normalizedPrimaryKey = primaryKeyField.toLowerCase().replace(/[\s_#"'']+/g, '');
+                const isPrimaryKeyHeader = normalizedHeader === normalizedPrimaryKey;
+
                 const fieldWrapper = document.createElement('div');
-                fieldWrapper.style.cssText = 'margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px; background: rgba(200,200,200,0.2);';
+                const wrapperStyle = isPrimaryKeyHeader
+                  ? 'margin-bottom: 12px; border: 2px solid rgba(255,68,68,0.5); border-radius: 4px; padding: 8px; background: rgba(255,68,68,0.1);'
+                  : 'margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px; background: rgba(200,200,200,0.2);';
+                fieldWrapper.style.cssText = wrapperStyle;
 
                 // Field label with validation checkbox
                 const labelRow = document.createElement('div');
@@ -204,19 +217,16 @@ export async function callFindUrlsAndModels() {
                 validateCheckbox.type = 'checkbox';
                 validateCheckbox.checked = true;
                 validateCheckbox.id = `${header.toLowerCase().replace(/\s+/g, '_')}Validate`;
-                validateCheckbox.title = 'Enable validation for this field';
-                validateCheckbox.style.cssText = 'cursor: pointer;';
+                validateCheckbox.title = isPrimaryKeyHeader ? 'Primary key field - always validated' : 'Enable validation for this field';
+                validateCheckbox.style.cssText = isPrimaryKeyHeader ? 'cursor: not-allowed; opacity: 0.5;' : 'cursor: pointer;';
+
+                // Primary key field must always be validated
+                if (isPrimaryKeyHeader) {
+                  validateCheckbox.disabled = true;
+                }
 
                 const label = document.createElement('label');
-                const normalizedHeader = header.toLowerCase().replace(/[\s_#"'']+/g, '');
-                const isStockHeader = (
-                  normalizedHeader === 'stocknumber' ||
-                  normalizedHeader === 'stock' ||
-                  normalizedHeader === 'stk' ||
-                  normalizedHeader === 'stockno' ||
-                  normalizedHeader === 'stock#'
-                );
-                label.innerHTML = isStockHeader ? `${header}: <span style="color: #ff4444;">*</span>` : `${header}:`;
+                label.innerHTML = isPrimaryKeyHeader ? `${header}: <span style="color: #ff4444; font-weight: bold;">🔑 PRIMARY KEY *</span>` : `${header}:`;
                 label.style.cssText = 'font-weight: bold; color: #000; cursor: pointer; flex: 1;';
                 label.htmlFor = validateCheckbox.id;
 
@@ -240,9 +250,9 @@ export async function callFindUrlsAndModels() {
                 input.style.cssText = 'flex: 1; padding: 4px;';
                 input.className = 'field-mapping';
 
-                if (isStockHeader) {
+                if (isPrimaryKeyHeader) {
                   input.required = true;
-                  input.dataset.isStockField = 'true';
+                  input.dataset.isPrimaryKeyField = 'true';
                   input.style.borderColor = '#ff4444';
                 }
 
@@ -365,7 +375,30 @@ export async function callFindUrlsAndModels() {
     }
 }
 
-function processCSVData(testType, csvData, customFieldMap, fieldTransforms = {}, validationEnabled = {}) {
+async function loadPrimaryKeyField() {
+    try {
+        // Get domain from current tab instead of location (we're in popup context)
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const domain = tab?.url ? new URL(tab.url).hostname.replace(/^www\./, '') : 'global';
+
+        const stored = await chrome.storage.local.get('primaryKeyField');
+        const keyFieldMap = stored.primaryKeyField || {};
+
+        console.log('🔍 Loading primary key - domain:', domain);
+        console.log('🔍 Loading primary key - full storage:', keyFieldMap);
+        console.log('🔍 Loading primary key - for this domain:', keyFieldMap[domain]);
+
+        const primaryKey = keyFieldMap[domain] || 'stockNumber';
+        console.log('🔍 Loading primary key - final result:', primaryKey);
+
+        return primaryKey;
+    } catch (error) {
+        console.error('Error loading primary key field:', error);
+        return 'stockNumber';
+    }
+}
+
+async function processCSVData(testType, csvData, customFieldMap, fieldTransforms = {}, validationEnabled = {}, primaryKeyField = 'stockNumber') {
     let scannedVehicles = 0;
     let result = {};
     let isProcessing = true;
@@ -373,6 +406,10 @@ function processCSVData(testType, csvData, customFieldMap, fieldTransforms = {},
     window.customFieldMap = customFieldMap;
     window.fieldTransforms = fieldTransforms;
     window.validationEnabled = validationEnabled;
+    window.primaryKeyField = primaryKeyField;
+
+    console.log('🔑 Primary key field set to:', primaryKeyField);
+
     console.log('🔄 Field transforms loaded:', fieldTransforms);
     console.log('✅ Validation enabled for:', validationEnabled);
 
@@ -394,7 +431,7 @@ function processCSVData(testType, csvData, customFieldMap, fieldTransforms = {},
         }
     }
 
-    findUrlsAndModels(testType, csvData);
+    await findUrlsAndModels(testType, csvData);
 
     async function findUrlsAndModels(testType, csvData) {
         try {
@@ -417,7 +454,8 @@ function processCSVData(testType, csvData, customFieldMap, fieldTransforms = {},
                     type: 'exportToCSV',
                     data: result,
                     testType: testType,
-                    siteName: window.location.hostname.replace('www.', '')
+                    siteName: window.location.hostname.replace('www.', ''),
+                    primaryKeyField: window.primaryKeyField || 'stockNumber'
                 });
             } else {
                 console.log('No mismatches found to export');
@@ -483,6 +521,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Collect field settings from UI
             const { transforms, validationEnabled } = collectFieldSettings();
 
+            // Load primary key field
+            const primaryKeyField = await loadPrimaryKeyField();
+            console.log('🔑 Passing primary key field to page:', primaryKeyField);
+
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 files: ['/core/$scrolling.js', '/core/$data-handler.js']
@@ -505,7 +547,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: processCSVData,
-                args: [testType, csvData, customFieldMap, transforms, validationEnabled]
+                args: [testType, csvData, customFieldMap, transforms, validationEnabled, primaryKeyField]
             });
         });
     }

@@ -1,9 +1,10 @@
 // vehicle-data-exporter.js
 // This module exports vehicle data from SRP pages to CSV format
 
-let selectedExportFields = ['stockNumber']; // Always starts with stockNumber
+let selectedExportFields = []; // Will be initialized with primary key field
 let availableSelectors = {}; // Generated from global manual selectors
 let currentDomain = '';
+let currentPrimaryKey = 'stockNumber'; // Default, will be loaded from storage
 
 document.addEventListener('DOMContentLoaded', () => {
     const exportVehicleDataButton = document.getElementById('export vehicle data to csv');
@@ -49,7 +50,7 @@ async function initializeExportFields() {
         currentDomain = new URL(tab.url).hostname.replace(/^www\./, '');
 
         // Load manual selectors from global/domain config
-        const stored = await chrome.storage.local.get('manualVehicleSelectors');
+        const stored = await chrome.storage.local.get(['manualVehicleSelectors', 'primaryKeyField']);
         const all = stored.manualVehicleSelectors || {};
         const selectors = all[currentDomain] || all.global || {};
 
@@ -58,11 +59,16 @@ async function initializeExportFields() {
             return;
         }
 
+        // Load primary key field for this domain
+        const keyFieldMap = stored.primaryKeyField || {};
+        currentPrimaryKey = keyFieldMap[currentDomain] || 'stockNumber';
+        console.log('🔑 Vehicle Data Exporter using primary key:', currentPrimaryKey);
+
         // Use manual selectors as base - this is our source of truth
         availableSelectors = { ...selectors };
 
-        // Initialize with stockNumber always selected
-        selectedExportFields = ['stockNumber'];
+        // Initialize with primary key field always selected
+        selectedExportFields = [currentPrimaryKey];
 
         // Render the fields as checkboxes
         renderExportFields();
@@ -84,10 +90,10 @@ function renderExportFields() {
     // Get all fields from availableSelectors (except vehicleCard)
     const allFields = Object.keys(availableSelectors).filter(field => field !== 'vehicleCard');
 
-    // Sort: stockNumber first, then rest alphabetically
+    // Sort: primary key first, then rest alphabetically
     allFields.sort((a, b) => {
-        if (a === 'stockNumber') return -1;
-        if (b === 'stockNumber') return 1;
+        if (a === currentPrimaryKey) return -1;
+        if (b === currentPrimaryKey) return 1;
         return a.localeCompare(b);
     });
 
@@ -105,8 +111,8 @@ function renderExportFields() {
         checkbox.checked = selectedExportFields.includes(fieldName);
         checkbox.style.cssText = 'cursor: pointer; width: 18px; height: 18px;';
 
-        const isStockNumber = fieldName === 'stockNumber';
-        if (isStockNumber) {
+        const isPrimaryKey = fieldName === currentPrimaryKey;
+        if (isPrimaryKey) {
             checkbox.disabled = true;
             checkbox.checked = true;
         } else {
@@ -126,8 +132,8 @@ function renderExportFields() {
         label.setAttribute('for', `export-field-${fieldName}`);
         label.style.cssText = 'flex: 1; cursor: pointer; font-weight: 500; color: #000;';
 
-        if (isStockNumber) {
-            label.innerHTML = `${fieldName} <span style="color: #d32f2f; font-size: 11px;">(MANDATORY)</span>`;
+        if (isPrimaryKey) {
+            label.innerHTML = `${fieldName} 🔑 <span style="color: #d32f2f; font-size: 11px;">(MANDATORY)</span>`;
         } else {
             label.textContent = fieldName;
         }
@@ -165,15 +171,17 @@ async function startVehicleDataExport() {
             return;
         }
 
-        // Inject selectors into the page
+        // Inject selectors and primary key into the page
         await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            func: (selectors) => {
+            func: (selectors, primaryKey) => {
                 const domain = location.hostname.replace(/^www\./, '');
                 if (!window.manualVehicleSelectors) window.manualVehicleSelectors = {};
                 window.manualVehicleSelectors[domain] = selectors;
+                window.primaryKeyField = primaryKey;
+                console.log('🔑 Injected primary key field:', primaryKey);
             },
-            args: [availableSelectors]
+            args: [availableSelectors, currentPrimaryKey]
         });
 
         // Inject required scripts
@@ -256,7 +264,8 @@ function executeVehicleDataExport(fieldsToExport = ['stockNumber']) {
                 type: 'exportToCSV',
                 data: result,
                 testType: testType,
-                siteName: window.location.hostname.replace('www.', '')
+                siteName: window.location.hostname.replace('www.', ''),
+                primaryKeyField: window.primaryKeyField || 'stockNumber'
             }, (response) => {
                 console.log('📤 Background response:', response);
                 if (chrome.runtime.lastError) {

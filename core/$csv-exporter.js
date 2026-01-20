@@ -1,6 +1,6 @@
 //$csv-exporter.js
-export function exportToCSVFile(data, testType, siteName) {
-    console.log('📤 exportToCSVFile called with:', { testType, dataLength: data?.length, siteName });
+export function exportToCSVFile(data, testType, siteName, primaryKeyField = 'stockNumber') {
+    console.log('📤 exportToCSVFile called with:', { testType, dataLength: data?.length, siteName, primaryKeyField });
     switch (testType){
         case "CSV_SRP_DATA_MATCHER": {
             if (!data || typeof data !== 'object') {
@@ -9,7 +9,7 @@ export function exportToCSVFile(data, testType, siteName) {
             }
         
             const filename = `${siteName}_${testType.toUpperCase()}_${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}.csv`;
-            const lines = ['StockNumber,Field,CSV,SRP'];
+            const lines = [`${primaryKeyField},Field,CSV,SRP`];
         
             for (const stockNumber in data) {
                 const mismatches = data[stockNumber].mismatches;
@@ -46,7 +46,7 @@ export function exportToCSVFile(data, testType, siteName) {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
             const filename = `${siteName}_${testType.toUpperCase()}_${timestamp}.csv`;
 
-            const headers = ['Model', 'Trim', 'Stock Number', 'Image URL'];
+            const headers = ['Model', 'Trim', primaryKeyField, 'Image URL'];
             const rows = data.map(item => [item.model, item.trim, item.stockNumber, item.imageUrl]);
             console.log('📤 CSV EXPORTER creating', rows.length, 'rows');
     
@@ -78,7 +78,7 @@ export function exportToCSVFile(data, testType, siteName) {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
             const filename = `${siteName}_${testType.toUpperCase()}_${timestamp}.csv`;
 
-            const headers = ['Stock Number', 'Model', 'Image Size (KB)', 'Timestamp'];
+            const headers = [primaryKeyField, 'Model', 'Image Size (KB)', 'Timestamp'];
             const rows = data.map(item => [
                 item.stockNumber,
                 item.model,
@@ -123,10 +123,10 @@ export function exportToCSVFile(data, testType, siteName) {
                 Object.keys(vehicle).forEach(field => allFields.add(field));
             });
 
-            // Convert to array and sort (stockNumber first, then model, trim, then alphabetically)
+            // Convert to array and sort (primary key first, then model, trim, then alphabetically)
             const headers = Array.from(allFields).sort((a, b) => {
-                if (a === 'stockNumber') return -1;
-                if (b === 'stockNumber') return 1;
+                if (a === primaryKeyField) return -1;
+                if (b === primaryKeyField) return 1;
                 if (a === 'model') return -1;
                 if (b === 'model') return 1;
                 if (a === 'trim') return -1;

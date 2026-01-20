@@ -607,3 +607,62 @@ input[type="radio"]:disabled {
         opacity: 1;
     }
 }
+
+/* Field row with key icon */
+.field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.key-icon-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-size: 16px;
+    opacity: 0.4;
+    transition: all 0.2s;
+}
+
+.key-icon-btn:hover {
+    opacity: 0.7;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.key-icon-btn.active {
+    opacity: 1;
+    background: rgba(255, 215, 0, 0.2);
+    border-color: rgba(255, 215, 0, 0.5);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+}
+
+.field-key, .field-selector {
+    flex: 1;
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.field-key[readonly] {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.remove-btn {
+    padding: 6px 10px;
+    cursor: pointer;
+    background: rgba(255, 0, 0, 0.2);
+    border: 1px solid rgba(255, 0, 0, 0.3);
+    border-radius: 4px;
+    color: white;
+}
+
+.remove-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}

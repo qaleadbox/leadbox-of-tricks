@@ -5,18 +5,55 @@ const saveManualBtn = document.getElementById('saveManualSelectors');
 const exportSelectorsBtn = document.getElementById('exportSelectors');
 const importSelectorsInput = document.getElementById('importSelectors');
 const STORAGE_KEY = 'manualVehicleSelectors';
+const KEY_FIELD_STORAGE = 'primaryKeyField';
 const MANDATORY_FIELDS = ['vehicleCard', 'stockNumber', 'model', 'image'];
+let currentPrimaryKey = 'stockNumber'; // Default
 
-function createFieldRow(key = '', selector = '', locked = false) {
+function createFieldRow(key = '', selector = '', locked = false, isPrimaryKey = false) {
   const row = document.createElement('div');
   row.className = 'field-row';
+  row.dataset.fieldKey = key;
+
+  const keyIconClass = isPrimaryKey ? 'key-icon active' : 'key-icon';
+  const keyIconTitle = isPrimaryKey ? 'Primary key (used for CSV matching)' : 'Set as primary key';
+
   row.innerHTML = `
+    <button class="key-icon-btn ${keyIconClass}" title="${keyIconTitle}">🔑</button>
     <input class="field-key" ${locked ? 'readonly' : ''} value="${key}">
     <input class="field-selector" placeholder="CSS selector" value="${selector}">
     <button class="remove-btn"${locked ? ' disabled' : ''}>🗑</button>
   `;
+
+  const keyBtn = row.querySelector('.key-icon-btn');
+  keyBtn.addEventListener('click', () => {
+    const currentKey = row.querySelector('.field-key').value.trim();
+    if (currentKey === 'vehicleCard') {
+      alert('❌ vehicleCard cannot be used as a primary key!');
+      return;
+    }
+    setAsPrimaryKey(row);
+  });
+
   row.querySelector('.remove-btn').addEventListener('click', () => { if (!locked) row.remove(); });
   fieldsContainer.appendChild(row);
+}
+
+function setAsPrimaryKey(row) {
+  // Remove active state from all key icons
+  fieldsContainer.querySelectorAll('.key-icon-btn').forEach(btn => {
+    btn.classList.remove('active');
+    btn.title = 'Set as primary key';
+  });
+
+  // Set this row as primary
+  const keyBtn = row.querySelector('.key-icon-btn');
+  keyBtn.classList.add('active');
+  keyBtn.title = 'Primary key (used for CSV matching)';
+
+  const fieldKey = row.querySelector('.field-key').value.trim();
+  currentPrimaryKey = fieldKey;
+  console.log(`🔑 Primary key set to: ${currentPrimaryKey}`);
+  console.log(`⚠️ Remember to click "Save Selectors" to persist this change!`);
 }
 
 async function getCurrentDomain() {
@@ -26,20 +63,35 @@ async function getCurrentDomain() {
 
 async function loadManualSelectors() {
   const domain = await getCurrentDomain();
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
+  const stored = await chrome.storage.local.get([STORAGE_KEY, KEY_FIELD_STORAGE]);
   const map = stored[STORAGE_KEY] || {};
   const selectors = map[domain] || {};
+
+  // Load primary key for this domain
+  const keyFieldMap = stored[KEY_FIELD_STORAGE] || {};
+  currentPrimaryKey = keyFieldMap[domain] || 'stockNumber';
+
   fieldsContainer.innerHTML = '';
-  MANDATORY_FIELDS.forEach(m => createFieldRow(m, selectors[m] || '', true));
+  MANDATORY_FIELDS.forEach(m => {
+    const isPrimary = m === currentPrimaryKey;
+    createFieldRow(m, selectors[m] || '', true, isPrimary);
+  });
   for (const [key, value] of Object.entries(selectors)) {
-    if (!MANDATORY_FIELDS.includes(key)) createFieldRow(key, value, false);
+    if (!MANDATORY_FIELDS.includes(key)) {
+      const isPrimary = key === currentPrimaryKey;
+      createFieldRow(key, value, false, isPrimary);
+    }
   }
   console.log(`📦 Loaded selectors for ${domain}`, selectors);
+  console.log(`🔑 Primary key for ${domain}: ${currentPrimaryKey}`);
 }
 
 async function saveManualSelectors() {
   const domain = await getCurrentDomain();
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
+  console.log('💾 Saving for domain:', domain);
+  console.log('💾 Current primary key:', currentPrimaryKey);
+
+  const stored = await chrome.storage.local.get([STORAGE_KEY, KEY_FIELD_STORAGE]);
   const map = stored[STORAGE_KEY] || {};
   const rows = fieldsContainer.querySelectorAll('.field-row');
   const selectors = {};
@@ -49,21 +101,35 @@ async function saveManualSelectors() {
     if (key && selector) selectors[key] = selector;
   });
   map[domain] = selectors;
-  await chrome.storage.local.set({ [STORAGE_KEY]: map });
+
+  // Save primary key for this domain
+  const keyFieldMap = stored[KEY_FIELD_STORAGE] || {};
+  console.log('💾 Previous keyFieldMap:', keyFieldMap);
+  keyFieldMap[domain] = currentPrimaryKey;
+  console.log('💾 New keyFieldMap:', keyFieldMap);
+
+  await chrome.storage.local.set({
+    [STORAGE_KEY]: map,
+    [KEY_FIELD_STORAGE]: keyFieldMap
+  });
+
   console.log(`💾 Saved selectors for ${domain}`, selectors);
+  console.log(`🔑 Saved primary key for ${domain}: ${currentPrimaryKey}`);
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) {
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: (domain, selectors) => {
+      func: (domain, selectors, primaryKey) => {
         if (!window.manualVehicleSelectors) window.manualVehicleSelectors = {};
         window.manualVehicleSelectors[domain] = selectors;
-        window.dispatchEvent(new CustomEvent('selectorsUpdated', { detail: { domain, selectors } }));
+        window.primaryKeyField = primaryKey;
+        window.dispatchEvent(new CustomEvent('selectorsUpdated', { detail: { domain, selectors, primaryKey } }));
       },
-      args: [domain, selectors]
+      args: [domain, selectors, currentPrimaryKey]
     });
   }
-  alert(`✅ Selectors saved for ${domain}!`);
+  alert(`✅ Selectors saved for ${domain}!\n🔑 Primary key: ${currentPrimaryKey}`);
 }
 
 addFieldBtn.addEventListener('click', () => createFieldRow());
@@ -244,7 +310,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             keys: Object.keys(message.data || {}),
             sample: message.data ? Object.values(message.data)[0] : null
         });
-        exportToCSVFile(message.data, message.testType, message.siteName);
+        exportToCSVFile(message.data, message.testType, message.siteName, message.primaryKeyField);
         sendResponse({ success: true });
     }
     return true;

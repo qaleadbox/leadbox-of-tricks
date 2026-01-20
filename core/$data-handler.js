@@ -189,8 +189,12 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 				return result;
 			}
 
-			if (!window.customFieldMap || !window.customFieldMap.STOCKNUMBER) {
-				console.error(`❌ customFieldMap.STOCKNUMBER is not set!`, window.customFieldMap);
+			// Get primary key field (default to stockNumber for backwards compatibility)
+			const primaryKeyField = window.primaryKeyField || 'stockNumber';
+			const primaryKeyUpper = primaryKeyField.toUpperCase();
+
+			if (!window.customFieldMap || !window.customFieldMap[primaryKeyField]) {
+				console.error(`❌ customFieldMap.${primaryKeyField} is not set!`, window.customFieldMap);
 				stopProcessingSpinner();
 				return result;
 			}
@@ -202,7 +206,8 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 			const normalizeKey = k => k ? k.replace(/^"+|"+$/g, '').trim().toUpperCase() : '';
 
 			const keySynonyms = {
-				STOCKNUMBER: ['STOCK', 'STK', 'STOCK#', 'STOCK_NO', 'STOCK_NO.', 'STOCKNUMBER']
+				STOCKNUMBER: ['STOCK', 'STK', 'STOCK#', 'STOCK_NO', 'STOCK_NO.', 'STOCKNUMBER'],
+				VIN: ['VIN', 'VIN#', 'VINNUMBER', 'VIN_NUMBER']
 			};
 
 			const csvHeaders = Object.keys(csvMap[Object.keys(csvMap)[0]] || []);
@@ -227,40 +232,40 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 
 			let processedVehicles = 0;
 			let vehiclesWithMismatches = 0;
-			const srpStocksMap = {};
-			const unmatchedStocks = [];
+			const srpKeysMap = {};
+			const unmatchedKeys = [];
 
 			for (const srpVehicle of allVehicleCards) {
-				const stockSel = window.customFieldMap.STOCKNUMBER;
-				console.log(`🔍 DEBUG: Trying to get stock with selector: "${stockSel}"`);
+				const primaryKeySel = window.customFieldMap[primaryKeyField];
+				console.log(`🔍 DEBUG: Trying to get ${primaryKeyField} with selector: "${primaryKeySel}"`);
 
 				// Test if the selector finds an element
-				const testEl = srpVehicle.querySelector(stockSel);
+				const testEl = srpVehicle.querySelector(primaryKeySel);
 				console.log(`🔍 DEBUG: Element found:`, testEl);
 				console.log(`🔍 DEBUG: Element text:`, testEl?.textContent);
 
-				let srpStockNumber = await getTextFromVehicleCard(srpVehicle, stockSel);
-				console.log(`🔍 DEBUG: Raw stock from getTextFromVehicleCard: "${srpStockNumber}"`);
+				let srpPrimaryKey = await getTextFromVehicleCard(srpVehicle, primaryKeySel);
+				console.log(`🔍 DEBUG: Raw ${primaryKeyField} from getTextFromVehicleCard: "${srpPrimaryKey}"`);
 
-				srpStockNumber = srpStockNumber?.replace(/^0+/, '').trim().replace(/['"]+/g, '');
-				console.log(`🔍 DEBUG: Stock after cleanup: "${srpStockNumber}"`);
+				srpPrimaryKey = srpPrimaryKey?.replace(/^0+/, '').trim().replace(/['"]+/g, '');
+				console.log(`🔍 DEBUG: ${primaryKeyField} after cleanup: "${srpPrimaryKey}"`);
 
-				if (!srpStockNumber) {
-					console.warn(`⚠️ DEBUG: Skipping vehicle - no stock number found`);
+				if (!srpPrimaryKey) {
+					console.warn(`⚠️ DEBUG: Skipping vehicle - no ${primaryKeyField} found`);
 					continue;
 				}
 
-				// Log all SRP stock values detected
-				console.log(`🔍 SRP Stock Detected: "${srpStockNumber}"`);
+				// Log all SRP primary key values detected
+				console.log(`🔍 SRP ${primaryKeyField} Detected: "${srpPrimaryKey}"`);
 
 				const csvVehicle = Object.entries(csvMap).find(([key]) =>
-					normalizeKey(key) === normalizeKey(srpStockNumber)
+					normalizeKey(key) === normalizeKey(srpPrimaryKey)
 				)?.[1];
 
 				if (!csvVehicle) {
-					console.warn(`🚫 CSV vehicle not found for stock: ${srpStockNumber}`);
-					srpStocksMap[srpStockNumber] = { detected: true, matched: false, reason: 'Not in CSV' };
-					unmatchedStocks.push(srpStockNumber);
+					console.warn(`🚫 CSV vehicle not found for ${primaryKeyField}: ${srpPrimaryKey}`);
+					srpKeysMap[srpPrimaryKey] = { detected: true, matched: false, reason: 'Not in CSV' };
+					unmatchedKeys.push(srpPrimaryKey);
 
 					// Get all field values from SRP card even when not matched
 					const srpCardData = {};
@@ -270,18 +275,18 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 						const srpTransformed = applyFieldTransform((srpRaw || '').toString().trim(), field, 'srp');
 						srpCardData[field] = normalizeValue(field, srpTransformed);
 					}
-					console.log(`📋 Unmatched Stock "${srpStockNumber}" SRP Data:`, srpCardData);
+					console.log(`📋 Unmatched ${primaryKeyField} "${srpPrimaryKey}" SRP Data:`, srpCardData);
 					continue;
 				}
 
-				srpStocksMap[srpStockNumber] = { detected: true, matched: true };
+				srpKeysMap[srpPrimaryKey] = { detected: true, matched: true };
 				processedVehicles++;
 				let hasMismatches = false;
 				const mismatches = {};
-				const matchedStockData = { csv: {}, srp: {} };
+				const matchedKeyData = { csv: {}, srp: {} };
 
 				for (const [field, selector] of Object.entries(window.customFieldMap)) {
-					if (!selector || field.toUpperCase() === "STOCKNUMBER") continue;
+					if (!selector || field.toUpperCase() === primaryKeyUpper) continue;
 
 					// Check if validation is enabled for this field
 					const fieldUpper = field.toUpperCase();
@@ -306,39 +311,39 @@ window.$dataHandler = async function (allVehicleCards, csvData, result, testType
 
 					console.log(`🔍 Field "${field}": CSV="${csvRaw}" → transformed:"${csvTransformed}" → normalized:"${csvNorm}", SRP="${srpRaw}" → transformed:"${srpTransformed}" → normalized:"${srpNorm}"`);
 
-					// Store all values for matched stock logging
-					matchedStockData.csv[field] = csvNorm;
-					matchedStockData.srp[field] = srpNorm;
+					// Store all values for matched primary key logging
+					matchedKeyData.csv[field] = csvNorm;
+					matchedKeyData.srp[field] = srpNorm;
 
 					if (await isExceptionValue(field, csvNorm, srpNorm)) continue;
 					if (srpNorm !== csvNorm) {
 						hasMismatches = true;
 						mismatches[field] = { csv: csvNorm, srp: srpNorm };
-						console.log(`❌ Mismatch for ${srpStockNumber} → ${field}: CSV="${csvNorm}" SRP="${srpNorm}"`);
+						console.log(`❌ Mismatch for ${srpPrimaryKey} → ${field}: CSV="${csvNorm}" SRP="${srpNorm}"`);
 					}
 				}
 
-				// Log all data for matched stock
-				console.log(`✅ Matched Stock "${srpStockNumber}" Full Data:`, matchedStockData);
+				// Log all data for matched primary key
+				console.log(`✅ Matched ${primaryKeyField} "${srpPrimaryKey}" Full Data:`, matchedKeyData);
 
 				if (hasMismatches) {
 					vehiclesWithMismatches++;
-					if (!result[srpStockNumber]) result[srpStockNumber] = { mismatches };
-					else Object.assign(result[srpStockNumber].mismatches, mismatches);
+					if (!result[srpPrimaryKey]) result[srpPrimaryKey] = { mismatches };
+					else Object.assign(result[srpPrimaryKey].mismatches, mismatches);
 				}
 			}
 
-			const matchedStocks = Object.keys(srpStocksMap).filter(s => srpStocksMap[s].matched);
-			const totalDetected = Object.keys(srpStocksMap).length;
+			const matchedKeys = Object.keys(srpKeysMap).filter(s => srpKeysMap[s].matched);
+			const totalDetected = Object.keys(srpKeysMap).length;
 
-			console.log("🚗 ALL DETECTED SRP STOCKS:", srpStocksMap);
-			console.log(`📊 STOCK SUMMARY:
-  Total SRP Stocks Detected: ${totalDetected}
-  Matched in CSV: ${matchedStocks.length}
-  Not Matched in CSV: ${unmatchedStocks.length}
+			console.log(`🚗 ALL DETECTED SRP PRIMARY KEYS (${primaryKeyField}):`, srpKeysMap);
+			console.log(`📊 PRIMARY KEY SUMMARY (${primaryKeyField}):
+  Total SRP ${primaryKeyField}s Detected: ${totalDetected}
+  Matched in CSV: ${matchedKeys.length}
+  Not Matched in CSV: ${unmatchedKeys.length}
   Vehicles with Mismatches: ${vehiclesWithMismatches}`);
-			console.log("✅ Matched Stocks:", matchedStocks);
-			console.log("❌ Unmatched Stocks:", unmatchedStocks);
+			console.log(`✅ Matched ${primaryKeyField}s:`, matchedKeys);
+			console.log(`❌ Unmatched ${primaryKeyField}s:`, unmatchedKeys);
 			console.log(`✅ CSV matcher done: ${processedVehicles} processed, ${vehiclesWithMismatches} mismatched.`);
 			stopProcessingSpinner();
 			return result;
@@ -729,6 +734,12 @@ async function csvParser(csvText) {
 
     const map = {};
 
+    // Get primary key field (defaults to stockNumber for backwards compatibility)
+    const primaryKeyField = window.primaryKeyField || 'stockNumber';
+    const primaryKeyUpper = primaryKeyField.toUpperCase();
+
+    console.log('🔑 CSV Parser using primary key field:', primaryKeyField);
+
     for (let i = 1; i < lines.length; i++) {
         const cols = parseCSVLine(lines[i], delimiter);
         const entry = {};
@@ -737,15 +748,20 @@ async function csvParser(csvText) {
             entry[h] = clean(cols[idx]);
         });
 
-        const stock = clean(
+        // Try to find primary key value using the configured primary key field
+        const primaryKeyValue = clean(
+            entry[primaryKeyField] ||
+            entry[primaryKeyUpper] ||
+            entry[primaryKeyField.toLowerCase()] ||
+            // Fallback to stockNumber variants for backwards compatibility
             entry["StockNumber"] ||
             entry["STOCKNUMBER"] ||
             entry["Stock"] ||
             entry["Stk"]
         );
 
-        if (stock) {
-            map[stock] = entry;
+        if (primaryKeyValue) {
+            map[primaryKeyValue] = entry;
         }
     }
 
@@ -772,7 +788,9 @@ function normalizeValue(k, v) {
 		return n.replace(/[^\d]/g, '');
 	}
 
-	if (key.includes('STOCK')) {
+	// Check if this is the primary key field - normalize it consistently
+	const primaryKeyField = (window.primaryKeyField || 'stockNumber').toUpperCase();
+	if (key.includes('STOCK') || key === primaryKeyField || key.includes(primaryKeyField)) {
 		return n.toUpperCase().replace(/\s+/g, '');
 	}
 
@@ -785,7 +803,9 @@ function normalizeValue(k, v) {
 
 async function isExceptionValue(k, cv, sv) {
 	if (!sv && !cv) return true;
-	if (k === 'STOCKNUMBER') return true;
+	// The primary key field is always an exception (never compared)
+	const primaryKeyField = (window.primaryKeyField || 'stockNumber').toUpperCase();
+	if (k.toUpperCase() === primaryKeyField || k === 'STOCKNUMBER') return true;
 	if (k === 'KILOMETERS' && sv.length === 17) return true;
 	if (k === 'VIN' && sv.length !== 17) return true;
 	const any = "*.*";

@@ -110,7 +110,7 @@ Promise.resolve().then(() => {
                         if (tabs[0]) {
                             chrome.scripting.executeScript({
                                 target: { tabId: tabs[0].id },
-                                func: (data, testType, siteName) => {
+                                func: (data, testType, siteName, primaryKeyField = 'stockNumber') => {
                                     // Inline CSV export function
                                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
                                     const filename = `${siteName}_VEHICLE_DATA_${timestamp}`;
@@ -121,10 +121,10 @@ Promise.resolve().then(() => {
                                         Object.keys(vehicle).forEach(field => allFields.add(field));
                                     });
 
-                                    // Sort headers (stockNumber first, then alphabetically)
+                                    // Sort headers (primary key first, then alphabetically)
                                     const headers = Array.from(allFields).sort((a, b) => {
-                                        if (a === 'stockNumber') return -1;
-                                        if (b === 'stockNumber') return 1;
+                                        if (a === primaryKeyField) return -1;
+                                        if (b === primaryKeyField) return 1;
                                         if (a === 'model') return -1;
                                         if (b === 'model') return 1;
                                         if (a === 'trim') return -1;
@@ -160,7 +160,7 @@ Promise.resolve().then(() => {
 
                                     console.log(`✅ CSV downloaded: ${filename}.csv with ${data.length} vehicles`);
                                 },
-                                args: [message.data, message.testType, message.siteName]
+                                args: [message.data, message.testType, message.siteName, message.primaryKeyField || 'stockNumber']
                             }).then(() => {
                                 sendResponse({ success: true });
                             }).catch(error => {
