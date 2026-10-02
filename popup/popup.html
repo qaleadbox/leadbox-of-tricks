@@ -51,6 +51,16 @@
             <li>Exports to CSV file for comparison with other sites</li>
           </ul>
         </li>
+        <li>
+          <div class="feature-title">Admin Inventory Compare (Old vs New)</div>
+          <div class="feature-description">Compare the old LeadBox admin inventory list against the new IMS vehicles list, matched by Stock #.</div>
+          <ul>
+            <li>Auto-detects which of the two admin pages you're on</li>
+            <li>Old page: exports Stock #, Year, Make, Model, Trim, Condition and Price to CSV</li>
+            <li>New page: paste that CSV to compare against the live IMS table</li>
+            <li>Downloads a discrepancy report: missing vehicles, new arrivals, field mismatches</li>
+          </ul>
+        </li>
       </ul>
     </div>
 
@@ -209,6 +219,37 @@ Steps:
     </div>
   </div>
   <script type="module" src="../export-vehicle-data/vehicle-data-exporter.js"></script>
+
+  <button id="compare admin inventory">Compare Admin Inventory: Old vs New <span class="availability-text">(ADMIN INVENTORY PAGES)</span></button>
+  <div id="inventoryCompareSection" class="module-section" style="display: none;">
+    <div style="background-color: #1565c0; color: white; padding: 10px; border-radius: 4px; margin-bottom: 12px; border-left: 4px solid #0d47a1;">
+      <div style="font-weight: bold; margin-bottom: 4px; font-size: 13px;">MIGRATION QA</div>
+      <div style="font-size: 11px; line-height: 1.4;">
+        Step 1 — on the old admin inventory list, export its data to CSV.<br>
+        Step 2 — on the new IMS vehicles list, paste that CSV and run the comparison. Matches by Stock #.
+      </div>
+    </div>
+
+    <div id="inventoryCompareStatus" style="font-size: 12px; color: #ccc; margin-bottom: 10px;">Click the button above to check this page.</div>
+
+    <div id="inventoryCompareOldUi" style="display: none;">
+      <div style="font-size: 12px; color: #ccc; margin-bottom: 10px;">
+        This looks like the old admin inventory list. Exports Stock #, Year, Make, Model, Trim, Condition, Price and After-Rebate price for every vehicle (forces "records per page" to All first).
+      </div>
+      <button id="startOldInventoryExport" class="action-button">Export Old Inventory to CSV</button>
+    </div>
+
+    <div id="inventoryCompareNewUi" style="display: none;">
+      <h3>Paste the Old Inventory CSV <span class="required-asterisk">*</span></h3>
+      <textarea id="inventoryCompareCsv" placeholder="Paste the CSV exported from the old admin inventory page here..."></textarea>
+      <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+        <button id="startInventoryCompare" class="action-button">Compare with This Page</button>
+      </div>
+    </div>
+
+    <div id="inventoryCompareSummary" style="font-size: 12px; color: #ccc; margin-top: 10px;"></div>
+  </div>
+  <script type="module" src="../inventory-compare/admin-inventory-compare.js"></script>
 
   <button id="Copy Unordered List Links">Copy Unordered List Links <span class="availability-text">(AVAILABLE ON SITEMAPs)</span></button>
   <div class="modal-overlay" id="modalOverlay"></div>
