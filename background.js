@@ -174,7 +174,7 @@ Promise.resolve().then(() => {
                 case 'exportToXLSX':
                     console.log('📊 Background received exportToXLSX request:', {
                         testType: message.testType,
-                        rows: message.aoa?.length,
+                        sheetCount: message.sheets?.length,
                         siteName: message.siteName
                     });
 
@@ -193,21 +193,21 @@ Promise.resolve().then(() => {
                             files: ['/lib/xlsx.bundle.js']
                         }).then(() => chrome.scripting.executeScript({
                             target: { tabId },
-                            func: (aoa, redCells, boldCells, filename, sheetName) => {
-                                const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-                                const RED_FILL = { fill: { patternType: 'solid', fgColor: { rgb: 'FFFFC7CE' } }, font: { color: { rgb: 'FF9C0006' } } };
-                                const BOLD = { font: { bold: true } };
-
-                                redCells.forEach(ref => { if (ws[ref]) ws[ref].s = RED_FILL; });
-                                boldCells.forEach(ref => { if (ws[ref]) ws[ref].s = { ...(ws[ref].s || {}), ...BOLD }; });
-
-                                // Readable default column widths: label, stock #, then the
-                                // vehicle-detail columns.
-                                ws['!cols'] = aoa[0].map((_, i) => ({ wch: i === 0 ? 10 : i === 1 ? 10 : 16 }));
-
+                            // One or more sheets, each { name, aoa, styles: [{ref, style}],
+                            // merges?, cols? } — the builder script (popup side) only ever
+                            // produces plain data; XLSX itself is only ever touched here.
+                            func: (sheets, filename) => {
                                 const wb = XLSX.utils.book_new();
-                                XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Report');
+                                sheets.forEach(sheet => {
+                                    const ws = XLSX.utils.aoa_to_sheet(sheet.aoa);
+                                    (sheet.styles || []).forEach(({ ref, style }) => {
+                                        if (ws[ref]) ws[ref].s = { ...(ws[ref].s || {}), ...style };
+                                    });
+                                    if (sheet.merges) ws['!merges'] = sheet.merges;
+                                    ws['!cols'] = sheet.cols || sheet.aoa[0].map((_, i) => ({ wch: i === 0 ? 10 : i === 1 ? 10 : 16 }));
+                                    XLSX.utils.book_append_sheet(wb, ws, sheet.name || 'Sheet');
+                                });
+                                wb.Workbook = { Views: [{ activeTab: 0 }] };
                                 const wbArray = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
 
                                 const blob = new Blob([wbArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -224,11 +224,8 @@ Promise.resolve().then(() => {
                                 console.log(`✅ XLSX downloaded: ${filename}.xlsx`);
                             },
                             args: [
-                                message.aoa,
-                                message.redCells || [],
-                                message.boldCells || [],
+                                message.sheets,
                                 `${message.siteName}_${message.testType}_${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}`,
-                                message.sheetName || 'Discrepancies'
                             ]
                         })).then(() => {
                             sendResponse({ success: true });

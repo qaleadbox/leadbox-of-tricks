@@ -151,7 +151,17 @@ async function scrapeOldAdminTable() {
         // the anchor's title attribute always carries the full name.
         const colourLink = tds[12]?.querySelector('a[title]');
         const colour = cleanText(colourLink?.getAttribute('title') || tds[12]?.textContent);
-        const tags = cleanText(tds[15]?.textContent);
+        // Tags cell can hold more than one tag (e.g. "Website" + a custom
+        // tag like "Accessories") rendered as plain space-separated text,
+        // not separate badge elements per tag (confirmed against a real
+        // report — multiple tags showed up concatenated as one string, e.g.
+        // "Website Accessories", never as distinct DOM nodes). Split the
+        // cleaned cell text on whitespace into individual tags (NOT
+        // hardcoded names; whatever words actually appear) and join with
+        // '; ' (TAG_DELIM at the top of this file — keep them in sync, this
+        // function runs in the page and can't reference that constant).
+        const tagsText = cleanText(tds[15]?.textContent);
+        const tags = (tagsText ? tagsText.split(' ') : []).join('; ');
         // "Action" = the link to the vehicle's live page on the dealer site
         // (the globe icon in the Action column), compared against the new
         // system's "View on dealer site" action link.
@@ -275,6 +285,13 @@ async function scrapeNewIMSTable() {
         const colourDiv = tds[9]?.querySelector('[title]');
         const colour = (colourDiv?.getAttribute('title') || directText(tds[9])).replace(/\s+/g, ' ').trim();
         const dealerSiteLink = findLinkByLabel(tds[15], 'View on dealer site');
+        // Same whitespace-split extraction as the old scraper (confirmed
+        // there that multiple tags render as plain space-separated text,
+        // not separate elements) — still unverified on this side since no
+        // new-system vehicle with actual tags was available to check against;
+        // revisit if a real tagged row here doesn't match this assumption.
+        const tagsText = directText(tds[14]);
+        const tagList = tagsText && tagsText !== '—' ? tagsText.split(' ') : [];
         return {
             stockNumber,
             year: directText(tds[4]),
@@ -287,7 +304,7 @@ async function scrapeNewIMSTable() {
             age: directText(tds[2]),
             photos: directText(tds[8]),
             colour,
-            tags: directText(tds[14]),
+            tags: tagList.join('; '),
             action: dealerSiteLink?.getAttribute('href') || '',
         };
     }).filter(v => v.stockNumber);
@@ -400,6 +417,195 @@ function diffInventories(oldVehicles, newVehicles) {
     return { missingFromNew, newArrivals, mismatches };
 }
 
+// Must match the join used by both scrapers above exactly (they can't
+// reference this constant — they run in the page, self-contained).
+const TAG_DELIM = '; ';
+function parseTagList(tagsField) {
+    return String(tagsField || '').split(TAG_DELIM).map(t => t.trim()).filter(Boolean);
+}
+
+// ── Summary sheet: a fixed row per known field (always present, even at
+// zero) plus one row per tag actually found in the old data — never a
+// hardcoded tag name, since tags are dealer-specific and only exist in the
+// scraped data. No AI/bespoke writing anywhere: every "check" is one of
+// these pre-written, static strings with numbers substituted in. ─────────
+const FIELD_AREA = {
+    year: 'Vehicle Data', make: 'Vehicle Data', model: 'Vehicle Data', trim: 'Vehicle Data', condition: 'Vehicle Data',
+    photos: 'Media', colour: 'Vehicle Data',
+    price: 'Pricing', priceAfterRebate: 'Pricing',
+    action: 'Website Link',
+};
+const FIELD_FINDING_TEXT = {
+    year: 'Model year was recorded incorrectly',
+    make: 'Make was recorded incorrectly',
+    model: 'Model was recorded incorrectly',
+    trim: 'Trim was recorded incorrectly',
+    condition: 'Condition (New/Used) is inconsistent with the old system',
+    photos: 'Photo count is different from the old system',
+    colour: 'Colour was mapped differently than the old system',
+    price: 'Price was not carried over correctly',
+    priceAfterRebate: 'After-rebate price was not carried over correctly',
+    action: 'Website link points somewhere different than the old system',
+};
+// 'age' is intentionally excluded here — it always drifts a little between
+// when the old CSV was exported and when the new system was scraped, so
+// flagging it would report expected time passing as a "finding".
+
+function buildTagFindings(oldVehicles, newVehicles) {
+    const newMap = new Map(newVehicles.map(v => [v.stockNumber, v]));
+    const allTags = new Set();
+    oldVehicles.forEach(v => parseTagList(v.tags).forEach(t => allTags.add(t)));
+
+    if (allTags.size === 0) {
+        return [{ area: 'Tags', check: 'No tags are used in the old system', affected: 0, total: oldVehicles.length }];
+    }
+
+    return [...allTags].map(tag => {
+        let total = 0;
+        let missing = 0;
+        oldVehicles.forEach(v => {
+            if (!parseTagList(v.tags).includes(tag)) return;
+            total++;
+            const newV = newMap.get(v.stockNumber);
+            const newTags = newV ? parseTagList(newV.tags) : [];
+            if (!newTags.includes(tag)) missing++;
+        });
+        return { area: 'Tags', check: `Missing "${tag}" tag in the new system`, affected: missing, total };
+    });
+}
+
+function buildFindings(oldVehicles, newVehicles, diff) {
+    // Field-level mismatches (price, condition, etc.) can only be checked on
+    // vehicles present in BOTH systems — a vehicle missing from the new
+    // system entirely wasn't actually compared on any of these fields, so it
+    // must not count toward the denominator (that previously made the
+    // percentages/totals understate the real rate: "out of 210" when only
+    // 209 vehicles could even be checked).
+    const matchedCount = oldVehicles.length - diff.missingFromNew.length;
+
+    const mismatchCounts = {};
+    diff.mismatches.forEach(m => m.diffs.forEach(field => {
+        mismatchCounts[field] = (mismatchCounts[field] || 0) + 1;
+    }));
+
+    const findings = Object.keys(FIELD_FINDING_TEXT).map(field => ({
+        area: FIELD_AREA[field],
+        check: FIELD_FINDING_TEXT[field],
+        affected: mismatchCounts[field] || 0,
+        total: matchedCount,
+    }));
+
+    findings.push(...buildTagFindings(oldVehicles, newVehicles));
+
+    findings.push({
+        area: 'Inventory',
+        check: 'Vehicle exists in the old system but not in the new one',
+        affected: diff.missingFromNew.length,
+        total: oldVehicles.length,
+    });
+    findings.push({
+        area: 'Inventory',
+        check: "Vehicle exists in the new system but wasn't in the old export",
+        affected: diff.newArrivals.length,
+        total: newVehicles.length,
+        kind: 'info', // expected (vehicles added since the export), not a defect
+    });
+
+    return findings;
+}
+
+// Shared cell styles — plain data (fill/font/numFmt objects), not XLSX API
+// calls. This script runs in the popup; XLSX itself only exists in the page
+// context background.js injects it into, so every builder here returns pure
+// aoa + style data and background.js is the only place that ever touches
+// the XLSX object.
+const STYLE_ISSUE = { fill: { patternType: 'solid', fgColor: { rgb: 'FFFFC7CE' } }, font: { bold: true, color: { rgb: 'FF9C0006' } } };
+const STYLE_OK = { fill: { patternType: 'solid', fgColor: { rgb: 'FFC6EFCE' } }, font: { bold: true, color: { rgb: 'FF006100' } } };
+const STYLE_INFO = { fill: { patternType: 'solid', fgColor: { rgb: 'FFDDEBF7' } }, font: { bold: true, color: { rgb: 'FF1F4E78' } } };
+const STYLE_HEADER = { fill: { patternType: 'solid', fgColor: { rgb: 'FF1F2937' } }, font: { bold: true, color: { rgb: 'FFFFFFFF' } } };
+const STYLE_BOLD = { font: { bold: true } };
+const STYLE_TITLE = { font: { bold: true, sz: 16 } };
+const STYLE_SUBTITLE = { font: { italic: true, color: { rgb: 'FF666666' } } };
+const STYLE_SUMMARY_LINE = { font: { bold: true, sz: 12 } };
+const STYLE_CENTER_BOLD = { font: { bold: true }, alignment: { horizontal: 'center' } };
+// Two decimals so a real-but-small finding (e.g. 1 of 210 = 0.48%) never
+// displays as a misleading "0%" the way a whole-number percent format would.
+const STYLE_PERCENT = { numFmt: '0.00%' };
+
+function summaryStatusFor(f) {
+    if (f.kind === 'info') return { text: 'INFO', style: STYLE_INFO };
+    if (f.affected > 0) return { text: 'ISSUE', style: STYLE_ISSUE };
+    return { text: 'OK', style: STYLE_OK };
+}
+
+// Builds the Summary sheet's DATA ONLY (aoa + cell styles + merges) — a
+// one-screen, color-coded findings list, no per-vehicle data (that's the
+// Details sheet). Handles both outcomes with the same code path: an
+// all-clean run and a many-issues run both just fall out of the same
+// per-field/per-tag enumeration, nothing is skipped either way.
+function buildSummarySheet(findings, oldTotal, newTotal) {
+    const checkCount = findings.filter(f => f.kind !== 'info').length;
+    const issueCount = findings.filter(f => f.kind !== 'info' && f.affected > 0).length;
+    const summaryLine = issueCount === 0
+        ? `All ${checkCount} checks passed — no migration issues found.`
+        : `${checkCount - issueCount} of ${checkCount} checks look clean. ${issueCount} need attention.`;
+
+    const areas = [...new Set(findings.map(f => f.area))];
+    const areaIssueCounts = areas.map(area =>
+        findings.filter(f => f.area === area && f.kind !== 'info' && f.affected > 0).length
+    );
+
+    const AREA_LABEL_ROW = 6;
+    const AREA_HEADER_ROW = 7;
+    const AREA_COUNT_ROW = 8;
+    const TABLE_HEADER_ROW = 10;
+
+    const aoa = [
+        ['Inventory Migration QA — Summary'],
+        [`Old system: ${oldTotal} vehicles · New system: ${newTotal} vehicles · Generated ${new Date().toISOString().slice(0, 10)}`],
+        [],
+        [summaryLine],
+        [],
+        ['Issues by area'],
+        [...areas],
+        [...areaIssueCounts],
+        [],
+        ['Status', 'Check', 'Affected', 'Out Of', '%'],
+        ...findings.map(f => [summaryStatusFor(f).text, f.check, f.affected, f.total, f.total ? f.affected / f.total : 0]),
+    ];
+
+    const styles = [
+        { ref: 'A1', style: STYLE_TITLE },
+        { ref: 'A2', style: STYLE_SUBTITLE },
+        { ref: 'A4', style: STYLE_SUMMARY_LINE },
+        { ref: `A${AREA_LABEL_ROW}`, style: STYLE_BOLD },
+    ];
+
+    areas.forEach((area, i) => {
+        const col = SHEET_COLS[i];
+        styles.push({ ref: `${col}${AREA_HEADER_ROW}`, style: STYLE_CENTER_BOLD });
+        const count = areaIssueCounts[i];
+        styles.push({ ref: `${col}${AREA_COUNT_ROW}`, style: { ...(count > 0 ? STYLE_ISSUE : STYLE_OK), alignment: { horizontal: 'center' } } });
+    });
+
+    ['A', 'B', 'C', 'D', 'E'].forEach(c => styles.push({ ref: `${c}${TABLE_HEADER_ROW}`, style: STYLE_HEADER }));
+    findings.forEach((f, i) => {
+        const row = TABLE_HEADER_ROW + 1 + i;
+        styles.push({ ref: `A${row}`, style: summaryStatusFor(f).style });
+        styles.push({ ref: `B${row}`, style: STYLE_BOLD });
+        styles.push({ ref: `E${row}`, style: STYLE_PERCENT });
+    });
+
+    const merges = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 4 } },
+        { s: { r: AREA_LABEL_ROW - 1, c: 0 }, e: { r: AREA_LABEL_ROW - 1, c: 4 } },
+    ];
+
+    return { aoa, styles, merges, cols: [{ wch: 14 }, { wch: 50 }, { wch: 11 }, { wch: 9 }, { wch: 8 }] };
+}
+
 // ── Spreadsheet report: one OLD row + one NEW row + one Detail row per
 // vehicle, blank spacer row between vehicles. Mismatched cells in the NEW
 // row (or the whole NEW/OLD row when a vehicle only exists on one side) get
@@ -417,8 +623,7 @@ function vehicleRow(label, v) {
 
 function buildReportSheet({ missingFromNew, newArrivals, mismatches }) {
     const aoa = [SHEET_HEADER];
-    const redCells = [];
-    const boldCells = SHEET_COLS.map(c => `${c}1`);
+    const styles = SHEET_COLS.map(c => ({ ref: `${c}1`, style: STYLE_HEADER }));
 
     function blankRow() { return SHEET_HEADER.map(() => ''); }
 
@@ -430,7 +635,7 @@ function buildReportSheet({ missingFromNew, newArrivals, mismatches }) {
         const detailRow = aoa.length + 1;
         aoa.push(blankRow().map((c, i) => i === 0 ? 'Detail' : c));
         aoa.push(blankRow());
-        boldCells.push(`A${oldRow}`, `A${newRow}`, `A${detailRow}`);
+        styles.push({ ref: `A${oldRow}`, style: STYLE_BOLD }, { ref: `A${newRow}`, style: STYLE_BOLD }, { ref: `A${detailRow}`, style: STYLE_BOLD });
         return { oldRow, newRow, detailRow };
     }
 
@@ -438,27 +643,28 @@ function buildReportSheet({ missingFromNew, newArrivals, mismatches }) {
         const { newRow, detailRow } = pushBlock(oldV, newV);
         diffs.forEach(field => {
             const colIndex = 2 + COMPARE_FIELDS.indexOf(field);
-            redCells.push(`${SHEET_COLS[colIndex]}${newRow}`);
+            styles.push({ ref: `${SHEET_COLS[colIndex]}${newRow}`, style: STYLE_ISSUE });
             aoa[detailRow - 1][colIndex] = `${oldV[field] || '(blank)'} → ${newV[field] || '(blank)'}`;
         });
     });
 
     missingFromNew.forEach(v => {
         const { newRow, detailRow } = pushBlock(v, null);
-        for (let c = 2; c <= LAST_COL_INDEX; c++) redCells.push(`${SHEET_COLS[c]}${newRow}`);
+        for (let c = 2; c <= LAST_COL_INDEX; c++) styles.push({ ref: `${SHEET_COLS[c]}${newRow}`, style: STYLE_ISSUE });
         aoa[detailRow - 1][0] = 'Missing from new system';
     });
 
     newArrivals.forEach(v => {
         const { oldRow, detailRow } = pushBlock(null, v);
-        for (let c = 2; c <= LAST_COL_INDEX; c++) redCells.push(`${SHEET_COLS[c]}${oldRow}`);
+        for (let c = 2; c <= LAST_COL_INDEX; c++) styles.push({ ref: `${SHEET_COLS[c]}${oldRow}`, style: STYLE_ISSUE });
         aoa[detailRow - 1][0] = 'New arrival (not in old export)';
     });
 
     // Drop the trailing blank spacer after the last block.
     if (aoa.length && aoa[aoa.length - 1].every(c => c === '')) aoa.pop();
 
-    return { aoa, redCells, boldCells };
+    const cols = aoa[0].map((_, i) => ({ wch: i === 0 ? 10 : i === 1 ? 10 : 18 }));
+    return { aoa, styles, cols };
 }
 
 async function runInventoryCompare() {
@@ -495,6 +701,8 @@ async function runInventoryCompare() {
 
         const diff = diffInventories(oldVehicles, result.vehicles);
         const discrepancyCount = diff.missingFromNew.length + diff.newArrivals.length + diff.mismatches.length;
+        const findings = buildFindings(oldVehicles, result.vehicles, diff);
+        const issueCount = findings.filter(f => f.kind !== 'info' && f.affected > 0).length;
 
         const summaryEl = document.getElementById('inventoryCompareSummary');
         if (summaryEl) {
@@ -503,28 +711,30 @@ async function runInventoryCompare() {
                 <div style="color:#ff6b35">Missing from new system: <b>${diff.missingFromNew.length}</b></div>
                 <div style="color:#8ab4f8">New arrivals (not in old export): <b>${diff.newArrivals.length}</b></div>
                 <div style="color:#ffd54f">Field mismatches on matched stock #s: <b>${diff.mismatches.length}</b></div>
+                <div>Summary checks needing attention: <b>${issueCount}</b> of ${findings.filter(f => f.kind !== 'info').length}</div>
             `;
         }
 
-        if (discrepancyCount === 0) {
-            setStatus('No discrepancies found — the two systems match on every stock number.', '#4CAF50');
-            return;
-        }
-
-        const { aoa, redCells, boldCells } = buildReportSheet(diff);
+        const summarySheet = buildSummarySheet(findings, oldVehicles.length, result.vehicles.length);
+        const detailsSheet = buildReportSheet(diff);
 
         chrome.runtime.sendMessage({
             type: 'exportToXLSX',
-            aoa, redCells, boldCells,
+            sheets: [
+                { name: 'Summary', ...summarySheet },
+                { name: 'Details', ...detailsSheet },
+            ],
             testType: 'INVENTORY_COMPARE_REPORT',
             siteName: new URL(tab.url).hostname.replace(/^www\./, ''),
-            sheetName: 'Discrepancies',
         }, (response) => {
             if (chrome.runtime.lastError || !response?.success) {
                 setStatus('Comparison done, but the report spreadsheet failed to download: ' + (chrome.runtime.lastError?.message || response?.error || 'unknown error'), '#ff6b35');
                 return;
             }
-            setStatus(`Comparison complete — ${discrepancyCount} discrepancies downloaded as a spreadsheet (mismatches highlighted in red).`, '#4CAF50');
+            setStatus(discrepancyCount === 0
+                ? 'No discrepancies found — spreadsheet downloaded (Summary shows all checks passed).'
+                : `Comparison complete — ${discrepancyCount} vehicle discrepancies, ${issueCount} summary checks need attention. Spreadsheet downloaded.`,
+                '#4CAF50');
         });
     } catch (error) {
         console.error('Error running inventory compare:', error);
