@@ -18,7 +18,7 @@
 // system used for arbitrary public SRP sites) because these are two
 // specific, known LeadBox products with a fixed column layout.
 
-const COMPARE_FIELDS = ['year', 'make', 'model', 'trim', 'condition', 'price', 'priceAfterRebate'];
+const COMPARE_FIELDS = ['condition', 'age', 'year', 'make', 'model', 'trim', 'photos', 'colour', 'price', 'priceAfterRebate', 'tags', 'action'];
 
 document.addEventListener('DOMContentLoaded', () => {
     const toggleButton = document.getElementById('compare admin inventory');
@@ -107,6 +107,16 @@ async function detectPageAndRender() {
 // Self-contained (runs via chrome.scripting.executeScript) — can't import
 // helpers, so everything it needs lives inside this one function.
 async function scrapeOldAdminTable() {
+    // The Tags cell can hold more than one label (e.g. "Website" + a custom
+    // tag like "Accessories") with a lot of raw HTML indentation/newlines
+    // between them — collapse that down to single spaces so the value is
+    // both readable and, critically, safe to round-trip through CSV (a raw
+    // embedded newline there previously broke the naive line-based CSV
+    // parser downstream, desyncing every row after it).
+    function cleanText(s) {
+        return String(s || '').replace(/\s+/g, ' ').trim();
+    }
+
     function readShownTotal() {
         const info = document.querySelector('#inventory-table_info');
         if (!info) return null;
@@ -135,6 +145,17 @@ async function scrapeOldAdminTable() {
         const stockNumber = (tds[8]?.textContent || '').trim();
         const priceText = (tds[13]?.textContent || '').trim();
         const rebateText = (tds[14]?.textContent || '').trim();
+        const ageText = (tds[2]?.textContent || '').trim();
+        const photosText = (tds[7]?.textContent || '').trim();
+        // Colour cell's visible text gets truncated ("Carbonized Grey ...") —
+        // the anchor's title attribute always carries the full name.
+        const colourLink = tds[12]?.querySelector('a[title]');
+        const colour = cleanText(colourLink?.getAttribute('title') || tds[12]?.textContent);
+        const tags = cleanText(tds[15]?.textContent);
+        // "Action" = the link to the vehicle's live page on the dealer site
+        // (the globe icon in the Action column), compared against the new
+        // system's "View on dealer site" action link.
+        const actionHref = tds[1]?.querySelector('a.show-on-website-element')?.getAttribute('href') || '';
         return {
             stockNumber,
             year: tr.dataset.year || '',
@@ -144,6 +165,11 @@ async function scrapeOldAdminTable() {
             condition: tr.dataset.condition || '',
             price: priceText,
             priceAfterRebate: rebateText,
+            age: ageText,
+            photos: photosText,
+            colour,
+            tags,
+            action: actionHref,
         };
     }).filter(v => v.stockNumber);
 
@@ -198,8 +224,18 @@ async function scrapeNewIMSTable() {
     function directText(el) {
         if (!el) return '';
         const clone = el.cloneNode(true);
-        clone.querySelectorAll('dl').forEach(dl => dl.remove());
-        return clone.textContent.trim();
+        // Strip the mobile-only duplicate <dl> blocks and any nested buttons
+        // (copy-stock-number / view-photos) so only the cell's own text is left.
+        clone.querySelectorAll('dl, button').forEach(node => node.remove());
+        // Collapse runs of whitespace (including real newlines between e.g.
+        // multiple tag labels) to single spaces — raw embedded newlines broke
+        // the CSV round-trip downstream by desyncing the naive line parser.
+        return clone.textContent.replace(/\s+/g, ' ').trim();
+    }
+
+    function findLinkByLabel(cell, label) {
+        if (!cell) return null;
+        return Array.from(cell.querySelectorAll('a')).find(a => a.querySelector('.sr-only')?.textContent.trim() === label) || null;
     }
 
     function readShownTotal() {
@@ -234,6 +270,11 @@ async function scrapeNewIMSTable() {
         const trimText = directText(tds[7]);
         const priceText = directText(tds[10]);
         const rebateText = directText(tds[11]);
+        // Colour cell's visible text gets truncated — the div's title
+        // attribute always carries the full name (same convention as old).
+        const colourDiv = tds[9]?.querySelector('[title]');
+        const colour = (colourDiv?.getAttribute('title') || directText(tds[9])).replace(/\s+/g, ' ').trim();
+        const dealerSiteLink = findLinkByLabel(tds[15], 'View on dealer site');
         return {
             stockNumber,
             year: directText(tds[4]),
@@ -243,6 +284,11 @@ async function scrapeNewIMSTable() {
             condition: (conditionBadge?.textContent || '').trim(),
             price: priceText === '—' ? '' : priceText,
             priceAfterRebate: rebateText === '—' ? '' : rebateText,
+            age: directText(tds[2]),
+            photos: directText(tds[8]),
+            colour,
+            tags: directText(tds[14]),
+            action: dealerSiteLink?.getAttribute('href') || '',
         };
     }).filter(v => v.stockNumber);
 
@@ -255,15 +301,24 @@ async function scrapeNewIMSTable() {
 }
 
 // ── CSV parsing (pasted from the old export) ───────────────────────────────
-function parseCSVLine(line) {
-    const out = [];
+// Full-text, quote-aware parser — NOT line-based. A quoted field is allowed
+// to contain literal commas, newlines and escaped ("") quotes per the CSV
+// spec; the exporter quotes every field, and some values genuinely contain
+// embedded newlines (e.g. a Tags cell with more than one label). Splitting
+// the input into "lines" first (naively, on \n) before parsing quotes broke
+// exactly on those rows — it cut a single record into pieces, and every
+// record after it in the file came out shifted/duplicated as a result.
+function parseCSV(text) {
+    const rows = [];
+    let row = [];
     let cur = '';
     let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-        const c = line[i];
+
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
         if (inQuotes) {
             if (c === '"') {
-                if (line[i + 1] === '"') { cur += '"'; i++; }
+                if (text[i + 1] === '"') { cur += '"'; i++; }
                 else inQuotes = false;
             } else {
                 cur += c;
@@ -271,30 +326,38 @@ function parseCSVLine(line) {
         } else if (c === '"') {
             inQuotes = true;
         } else if (c === ',') {
-            out.push(cur);
-            cur = '';
+            row.push(cur); cur = '';
+        } else if (c === '\r') {
+            // skip — the matching '\n' (if any) ends the row below
+        } else if (c === '\n') {
+            row.push(cur); cur = '';
+            rows.push(row); row = [];
         } else {
             cur += c;
         }
     }
-    out.push(cur);
-    return out;
-}
+    if (cur !== '' || row.length > 0) { row.push(cur); rows.push(row); }
 
-function parseCSV(text) {
-    const lines = text.split(/\r\n|\n/).filter(l => l.trim().length > 0);
-    if (lines.length < 2) return [];
-    const headers = parseCSVLine(lines[0]).map(h => h.trim());
-    return lines.slice(1).map(line => {
-        const cells = parseCSVLine(line);
-        const row = {};
-        headers.forEach((h, i) => { row[h] = (cells[i] || '').trim(); });
-        return row;
+    const dataRows = rows.filter(r => !(r.length === 1 && r[0].trim() === ''));
+    if (dataRows.length < 2) return [];
+
+    const headers = dataRows[0].map(h => h.trim());
+    return dataRows.slice(1).map(cells => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = (cells[i] || '').trim(); });
+        return obj;
     });
 }
 
 // ── Diff ────────────────────────────────────────────────────────────────────
-function normalizePrice(v) {
+// Every field in COMPARE_FIELDS is checked — including when one side is
+// blank and the other isn't, since that's real, reportable information for
+// a migration (e.g. old has a Price, new shows nothing). The only case that
+// is NOT a mismatch is both sides genuinely blank/unknown — there's nothing
+// to compare there, so it would just be noise.
+const NUMERIC_FIELDS = new Set(['price', 'priceAfterRebate', 'age', 'photos']);
+
+function normalizeNumber(v) {
     if (!v) return null;
     const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
     return Number.isFinite(n) ? n : null;
@@ -305,15 +368,15 @@ function normalizeText(v) {
 }
 
 function fieldsDiffer(field, oldVal, newVal) {
-    if (field === 'price' || field === 'priceAfterRebate') {
-        const a = normalizePrice(oldVal);
-        const b = normalizePrice(newVal);
-        if (a === null || b === null) return false; // don't flag unknown/blank on either side
+    if (NUMERIC_FIELDS.has(field)) {
+        const a = normalizeNumber(oldVal);
+        const b = normalizeNumber(newVal);
+        if (a === null && b === null) return false; // both unknown/blank — nothing to compare
         return a !== b;
     }
     const a = normalizeText(oldVal);
     const b = normalizeText(newVal);
-    if (!a || !b) return false;
+    if (!a && !b) return false; // both blank — nothing to compare
     return a !== b;
 }
 
@@ -342,22 +405,14 @@ function diffInventories(oldVehicles, newVehicles) {
 // row (or the whole NEW/OLD row when a vehicle only exists on one side) get
 // a red fill; the Detail row carries the "old -> new" text per mismatched
 // column. ────────────────────────────────────────────────────────────────
-const SHEET_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
-const SHEET_HEADER = ['', 'Stock #', 'Year', 'Make', 'Model', 'Trim', 'Condition', 'Price', 'After Rebate'];
-// COMPARE_FIELDS[i] lives in column index 2 + i (columns C..I)
+// Label + Stock # + one column per COMPARE_FIELDS entry, in that order.
+const SHEET_COLS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.slice(0, 2 + COMPARE_FIELDS.length).split('');
+const SHEET_HEADER = ['', 'Stock #', 'Condition', 'Age', 'Year', 'Make', 'Model', 'Trim', 'Photos', 'Colour', 'Price', 'After Rebate', 'Tags', 'Action'];
+const LAST_COL_INDEX = 1 + COMPARE_FIELDS.length; // last field column's 0-based index
+// COMPARE_FIELDS[i] lives in column index 2 + i (columns C..N)
 
 function vehicleRow(label, v) {
-    return [
-        label,
-        v?.stockNumber || '',
-        v?.year || '',
-        v?.make || '',
-        v?.model || '',
-        v?.trim || '',
-        v?.condition || '',
-        v?.price || '',
-        v?.priceAfterRebate || '',
-    ];
+    return [label, v?.stockNumber || '', ...COMPARE_FIELDS.map(f => v?.[f] || '')];
 }
 
 function buildReportSheet({ missingFromNew, newArrivals, mismatches }) {
@@ -365,14 +420,16 @@ function buildReportSheet({ missingFromNew, newArrivals, mismatches }) {
     const redCells = [];
     const boldCells = SHEET_COLS.map(c => `${c}1`);
 
+    function blankRow() { return SHEET_HEADER.map(() => ''); }
+
     function pushBlock(oldV, newV) {
         const oldRow = aoa.length + 1;
         aoa.push(vehicleRow('OLD', oldV));
         const newRow = aoa.length + 1;
         aoa.push(vehicleRow('NEW', newV));
         const detailRow = aoa.length + 1;
-        aoa.push(['Detail', '', '', '', '', '', '', '', '']);
-        aoa.push(['', '', '', '', '', '', '', '', '']);
+        aoa.push(blankRow().map((c, i) => i === 0 ? 'Detail' : c));
+        aoa.push(blankRow());
         boldCells.push(`A${oldRow}`, `A${newRow}`, `A${detailRow}`);
         return { oldRow, newRow, detailRow };
     }
@@ -388,13 +445,13 @@ function buildReportSheet({ missingFromNew, newArrivals, mismatches }) {
 
     missingFromNew.forEach(v => {
         const { newRow, detailRow } = pushBlock(v, null);
-        for (let c = 2; c <= 8; c++) redCells.push(`${SHEET_COLS[c]}${newRow}`);
+        for (let c = 2; c <= LAST_COL_INDEX; c++) redCells.push(`${SHEET_COLS[c]}${newRow}`);
         aoa[detailRow - 1][0] = 'Missing from new system';
     });
 
     newArrivals.forEach(v => {
         const { oldRow, detailRow } = pushBlock(null, v);
-        for (let c = 2; c <= 8; c++) redCells.push(`${SHEET_COLS[c]}${oldRow}`);
+        for (let c = 2; c <= LAST_COL_INDEX; c++) redCells.push(`${SHEET_COLS[c]}${oldRow}`);
         aoa[detailRow - 1][0] = 'New arrival (not in old export)';
     });
 
