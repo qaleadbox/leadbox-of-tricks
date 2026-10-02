@@ -171,6 +171,74 @@ Promise.resolve().then(() => {
                     });
                     return true;
 
+                case 'exportToXLSX':
+                    console.log('📊 Background received exportToXLSX request:', {
+                        testType: message.testType,
+                        rows: message.aoa?.length,
+                        siteName: message.siteName
+                    });
+
+                    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                        if (!tabs[0]) {
+                            sendResponse({ success: false, error: 'No active tab found' });
+                            return;
+                        }
+                        const tabId = tabs[0].id;
+
+                        // xlsx-js-style can't be imported into the service worker (no DOM/zip
+                        // deps bundled for that context) — load it into the page instead, same
+                        // injection pattern as the CSV export above.
+                        chrome.scripting.executeScript({
+                            target: { tabId },
+                            files: ['/lib/xlsx.bundle.js']
+                        }).then(() => chrome.scripting.executeScript({
+                            target: { tabId },
+                            func: (aoa, redCells, boldCells, filename, sheetName) => {
+                                const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+                                const RED_FILL = { fill: { patternType: 'solid', fgColor: { rgb: 'FFFFC7CE' } }, font: { color: { rgb: 'FF9C0006' } } };
+                                const BOLD = { font: { bold: true } };
+
+                                redCells.forEach(ref => { if (ws[ref]) ws[ref].s = RED_FILL; });
+                                boldCells.forEach(ref => { if (ws[ref]) ws[ref].s = { ...(ws[ref].s || {}), ...BOLD }; });
+
+                                // Readable default column widths: label, stock #, then the
+                                // vehicle-detail columns.
+                                ws['!cols'] = aoa[0].map((_, i) => ({ wch: i === 0 ? 10 : i === 1 ? 10 : 16 }));
+
+                                const wb = XLSX.utils.book_new();
+                                XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Report');
+                                const wbArray = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+                                const blob = new Blob([wbArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                                const link = document.createElement('a');
+                                const url = URL.createObjectURL(blob);
+                                link.href = url;
+                                link.download = `${filename}.xlsx`;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                URL.revokeObjectURL(url);
+
+                                console.log(`✅ XLSX downloaded: ${filename}.xlsx`);
+                            },
+                            args: [
+                                message.aoa,
+                                message.redCells || [],
+                                message.boldCells || [],
+                                `${message.siteName}_${message.testType}_${new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')}`,
+                                message.sheetName || 'Discrepancies'
+                            ]
+                        })).then(() => {
+                            sendResponse({ success: true });
+                        }).catch(error => {
+                            console.error('Error exporting XLSX:', error);
+                            sendResponse({ success: false, error: error.message });
+                        });
+                    });
+                    return true;
+
                 default:
                     console.warn('Unknown message type:', message.type);
                     sendResponse({ success: false, error: 'Unknown message type' });

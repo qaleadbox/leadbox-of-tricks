@@ -58,7 +58,7 @@
             <li>Auto-detects which of the two admin pages you're on</li>
             <li>Old page: exports Stock #, Year, Make, Model, Trim, Condition and Price to CSV</li>
             <li>New page: paste that CSV to compare against the live IMS table</li>
-            <li>Downloads a discrepancy report: missing vehicles, new arrivals, field mismatches</li>
+            <li>Downloads a discrepancy spreadsheet (.xlsx): old/new row pair per vehicle, red-highlighted mismatches, differences spelled out on a third row</li>
           </ul>
         </li>
       </ul>
@@ -226,7 +226,7 @@ Steps:
       <div style="font-weight: bold; margin-bottom: 4px; font-size: 13px;">MIGRATION QA</div>
       <div style="font-size: 11px; line-height: 1.4;">
         Step 1 — on the old admin inventory list, export its data to CSV.<br>
-        Step 2 — on the new IMS vehicles list, paste that CSV and run the comparison. Matches by Stock #.
+        Step 2 — on the new IMS vehicles list, paste that CSV and run the comparison. Matches by Stock #. Downloads a spreadsheet: one row per system per vehicle, with mismatched cells highlighted in red and the difference spelled out on a third row.
       </div>
     </div>
 

@@ -45,6 +45,12 @@
     },
     {
       "resources": [
+        "/lib/xlsx.bundle.js"
+      ],
+      "matches": ["<all_urls>"]
+    },
+    {
+      "resources": [
         "/claude/claude-client.js",
         "/claude/claude-config.js",
         "/claude/claude-image-analyzer.js",

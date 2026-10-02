@@ -337,25 +337,71 @@ function diffInventories(oldVehicles, newVehicles) {
     return { missingFromNew, newArrivals, mismatches };
 }
 
-function buildReportRows({ missingFromNew, newArrivals, mismatches }) {
-    const rows = [];
-    missingFromNew.forEach(v => rows.push({
-        stockNumber: v.stockNumber, issueType: 'MISSING_FROM_NEW',
-        year: v.year, make: v.make, model: v.model, trim: v.trim,
-        oldPrice: v.price, newPrice: '', detail: 'Present in old system, not found in new system',
-    }));
-    newArrivals.forEach(v => rows.push({
-        stockNumber: v.stockNumber, issueType: 'NEW_ARRIVAL',
-        year: v.year, make: v.make, model: v.model, trim: v.trim,
-        oldPrice: '', newPrice: v.price, detail: 'Present in new system, not in old export',
-    }));
-    mismatches.forEach(({ stockNumber, oldV, newV, diffs }) => rows.push({
-        stockNumber, issueType: 'FIELD_MISMATCH',
-        year: newV.year, make: newV.make, model: newV.model, trim: newV.trim,
-        oldPrice: oldV.price, newPrice: newV.price,
-        detail: diffs.map(f => `${f}: "${oldV[f]}" -> "${newV[f]}"`).join('; '),
-    }));
-    return rows;
+// ── Spreadsheet report: one OLD row + one NEW row + one Detail row per
+// vehicle, blank spacer row between vehicles. Mismatched cells in the NEW
+// row (or the whole NEW/OLD row when a vehicle only exists on one side) get
+// a red fill; the Detail row carries the "old -> new" text per mismatched
+// column. ────────────────────────────────────────────────────────────────
+const SHEET_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+const SHEET_HEADER = ['', 'Stock #', 'Year', 'Make', 'Model', 'Trim', 'Condition', 'Price', 'After Rebate'];
+// COMPARE_FIELDS[i] lives in column index 2 + i (columns C..I)
+
+function vehicleRow(label, v) {
+    return [
+        label,
+        v?.stockNumber || '',
+        v?.year || '',
+        v?.make || '',
+        v?.model || '',
+        v?.trim || '',
+        v?.condition || '',
+        v?.price || '',
+        v?.priceAfterRebate || '',
+    ];
+}
+
+function buildReportSheet({ missingFromNew, newArrivals, mismatches }) {
+    const aoa = [SHEET_HEADER];
+    const redCells = [];
+    const boldCells = SHEET_COLS.map(c => `${c}1`);
+
+    function pushBlock(oldV, newV) {
+        const oldRow = aoa.length + 1;
+        aoa.push(vehicleRow('OLD', oldV));
+        const newRow = aoa.length + 1;
+        aoa.push(vehicleRow('NEW', newV));
+        const detailRow = aoa.length + 1;
+        aoa.push(['Detail', '', '', '', '', '', '', '', '']);
+        aoa.push(['', '', '', '', '', '', '', '', '']);
+        boldCells.push(`A${oldRow}`, `A${newRow}`, `A${detailRow}`);
+        return { oldRow, newRow, detailRow };
+    }
+
+    mismatches.forEach(({ oldV, newV, diffs }) => {
+        const { newRow, detailRow } = pushBlock(oldV, newV);
+        diffs.forEach(field => {
+            const colIndex = 2 + COMPARE_FIELDS.indexOf(field);
+            redCells.push(`${SHEET_COLS[colIndex]}${newRow}`);
+            aoa[detailRow - 1][colIndex] = `${oldV[field] || '(blank)'} → ${newV[field] || '(blank)'}`;
+        });
+    });
+
+    missingFromNew.forEach(v => {
+        const { newRow, detailRow } = pushBlock(v, null);
+        for (let c = 2; c <= 8; c++) redCells.push(`${SHEET_COLS[c]}${newRow}`);
+        aoa[detailRow - 1][0] = 'Missing from new system';
+    });
+
+    newArrivals.forEach(v => {
+        const { oldRow, detailRow } = pushBlock(null, v);
+        for (let c = 2; c <= 8; c++) redCells.push(`${SHEET_COLS[c]}${oldRow}`);
+        aoa[detailRow - 1][0] = 'New arrival (not in old export)';
+    });
+
+    // Drop the trailing blank spacer after the last block.
+    if (aoa.length && aoa[aoa.length - 1].every(c => c === '')) aoa.pop();
+
+    return { aoa, redCells, boldCells };
 }
 
 async function runInventoryCompare() {
@@ -391,7 +437,7 @@ async function runInventoryCompare() {
         }
 
         const diff = diffInventories(oldVehicles, result.vehicles);
-        const reportRows = buildReportRows(diff);
+        const discrepancyCount = diff.missingFromNew.length + diff.newArrivals.length + diff.mismatches.length;
 
         const summaryEl = document.getElementById('inventoryCompareSummary');
         if (summaryEl) {
@@ -403,23 +449,25 @@ async function runInventoryCompare() {
             `;
         }
 
-        if (reportRows.length === 0) {
+        if (discrepancyCount === 0) {
             setStatus('No discrepancies found — the two systems match on every stock number.', '#4CAF50');
             return;
         }
 
+        const { aoa, redCells, boldCells } = buildReportSheet(diff);
+
         chrome.runtime.sendMessage({
-            type: 'exportToCSV',
-            data: reportRows,
+            type: 'exportToXLSX',
+            aoa, redCells, boldCells,
             testType: 'INVENTORY_COMPARE_REPORT',
             siteName: new URL(tab.url).hostname.replace(/^www\./, ''),
-            primaryKeyField: 'stockNumber',
+            sheetName: 'Discrepancies',
         }, (response) => {
             if (chrome.runtime.lastError || !response?.success) {
-                setStatus('Comparison done, but the report CSV failed to download: ' + (chrome.runtime.lastError?.message || response?.error || 'unknown error'), '#ff6b35');
+                setStatus('Comparison done, but the report spreadsheet failed to download: ' + (chrome.runtime.lastError?.message || response?.error || 'unknown error'), '#ff6b35');
                 return;
             }
-            setStatus(`Comparison complete — ${reportRows.length} discrepancies downloaded as CSV.`, '#4CAF50');
+            setStatus(`Comparison complete — ${discrepancyCount} discrepancies downloaded as a spreadsheet (mismatches highlighted in red).`, '#4CAF50');
         });
     } catch (error) {
         console.error('Error running inventory compare:', error);
